@@ -1,4 +1,3 @@
-
 /*
  *  iaf_psc_exp_neuron_nestml.cu
  *
@@ -24,6 +23,7 @@
 #include <config.h>
 #include <cmath>
 #include <iostream>
+
 #include "iaf_psc_exp_neuron_nestml.h"
 #include "spike_buffer.h"
 
@@ -31,19 +31,17 @@ using namespace iaf_psc_exp_neuron_nestml_ns;
 
 /*
  * ============================================================
- * (everything is new there) POST-INTEGRATION KERNEL
+ * POST-INTEGRATION KERNEL (needed for numeric solver)
  * ============================================================
  *
- * This kernel handles:
- *   onReceive (synaptic input)
- *   onCondition (threshold & spike)
+ * Handles:
+ *   - onReceive: apply buffered spikes to synaptic currents
+ *   - onCondition: threshold check, reset, spike emission
  *
- * NOTE:
- * -----
- * This kernel exists ONLY because odeint cannot call
- * neuron-local callbacks during integration.
+ * This separation matches the NEST/NESTML pattern:
+ *   integrate ODEs first  -> then handle events.
  */
- __global__ void iaf_psc_exp_neuron_nestml_PostUpdate(
+__global__ void iaf_psc_exp_neuron_nestml_PostUpdate(
     int n_node,
     int i_node_0,
     float* var_arr,
@@ -51,170 +49,171 @@ using namespace iaf_psc_exp_neuron_nestml_ns;
     int n_var,
     int n_param)
 {
-  int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
+  const int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
   if (i_neuron >= n_node)
     return;
 
-  float* var = var_arr + n_var * i_neuron;
+  float* var   = var_arr   + n_var   * i_neuron;
   float* param = param_arr + n_param * i_neuron;
 
-  // ================= onReceive =================
-  if (var[N_SCAL_VAR + i_exc_spikes])
+  // ----------------------------
+  // onReceive (spike input ports)
+  // ----------------------------
+  // Port variables are stored after scalar variables: var[N_SCAL_VAR + port_idx]
+  if (var[N_SCAL_VAR + i_exc_spikes] != 0.0f)
   {
-    var[i_I_syn_exc] +=
-      (0.001f * var[N_SCAL_VAR + i_exc_spikes]) * 1000.0f;
-    var[N_SCAL_VAR + i_exc_spikes] = 0;
+    // Same scaling as your analytic onReceive:
+    // (0.001 * multiplicity) * 1000 -> effectively multiplicity
+    var[i_I_syn_exc] += (0.001f * var[N_SCAL_VAR + i_exc_spikes]) * 1000.0f;
+    var[N_SCAL_VAR + i_exc_spikes] = 0.0f;
   }
 
-  if (var[N_SCAL_VAR + i_inh_spikes])
+  if (var[N_SCAL_VAR + i_inh_spikes] != 0.0f)
   {
-    var[i_I_syn_inh] +=
-      (0.001f * var[N_SCAL_VAR + i_inh_spikes]) * 1000.0f;
-    var[N_SCAL_VAR + i_inh_spikes] = 0;
+    var[i_I_syn_inh] += (0.001f * var[N_SCAL_VAR + i_inh_spikes]) * 1000.0f;
+    var[N_SCAL_VAR + i_inh_spikes] = 0.0f;
   }
 
-  // ================= onCondition =================
+  // ----------------------------
+  // onCondition (threshold/spike)
+  // ----------------------------
   if (var[i_refr_t] <= 0.0f && var[i_V_m] >= param[i_V_th])
   {
     var[i_refr_t] = param[i_refr_T];
-    var[i_V_m] = param[i_V_reset];
+    var[i_V_m]    = param[i_V_reset];
     PushSpike(i_node_0 + i_neuron, 1.0);
-  }
-}
-
-__global__ void iaf_psc_exp_neuron_nestml_Calibrate(int n_node, float *param_arr,
-				      int n_param, float h)
-{
-  int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
-  if (i_neuron < n_node) {
-    float *param = param_arr + n_param*i_neuron;
-    param[i___h] = h; // as ms    
-
-
-      param[i___P__I_syn_exc__I_syn_exc] = exp((-param[i___h]) / param[i_tau_syn_exc]); // as real
-
-
-      param[i___P__I_syn_inh__I_syn_inh] = exp((-param[i___h]) / param[i_tau_syn_inh]); // as real
-
-
-      param[i___P__V_m__I_syn_exc] = param[i_tau_m] * param[i_tau_syn_exc] * ((-exp(param[i___h] / param[i_tau_m])) + exp(param[i___h] / param[i_tau_syn_exc])) * exp((-param[i___h]) * (param[i_tau_m] + param[i_tau_syn_exc]) / (param[i_tau_m] * param[i_tau_syn_exc])) / (param[i_C_m] * (param[i_tau_m] - param[i_tau_syn_exc])); // as real
-
-
-      param[i___P__V_m__I_syn_inh] = param[i_tau_m] * param[i_tau_syn_inh] * (exp(param[i___h] / param[i_tau_m]) - exp(param[i___h] / param[i_tau_syn_inh])) * exp((-param[i___h]) * (param[i_tau_m] + param[i_tau_syn_inh]) / (param[i_tau_m] * param[i_tau_syn_inh])) / (param[i_C_m] * (param[i_tau_m] - param[i_tau_syn_inh])); // as real
-
-
-      param[i___P__V_m__V_m] = exp((-param[i___h]) / param[i_tau_m]); // as real
-
-
-      param[i___P__refr_t__refr_t] = 1; // as real
   }
 }
 
 /*
  * ============================================================
- * (unchanged) ANALYTIC UPDATE KERNEL 
+ * ANALYTIC CALIBRATION KERNEL
+ * ============================================================
+ *
+ * Used only by analytic solver.
+ * Numeric solver does not need these precomputed coefficients.
+ */
+__global__ void iaf_psc_exp_neuron_nestml_Calibrate(
+    int n_node,
+    float* param_arr,
+    int n_param,
+    float h)
+{
+  const int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i_neuron >= n_node)
+    return;
+
+  float* param = param_arr + n_param * i_neuron;
+  param[i___h] = h; // ms
+
+  param[i___P__I_syn_exc__I_syn_exc] = expf((-param[i___h]) / param[i_tau_syn_exc]);
+  param[i___P__I_syn_inh__I_syn_inh] = expf((-param[i___h]) / param[i_tau_syn_inh]);
+
+  param[i___P__V_m__I_syn_exc] =
+    param[i_tau_m] * param[i_tau_syn_exc] *
+    ((-expf(param[i___h] / param[i_tau_m])) + expf(param[i___h] / param[i_tau_syn_exc])) *
+    expf((-param[i___h]) * (param[i_tau_m] + param[i_tau_syn_exc]) /
+         (param[i_tau_m] * param[i_tau_syn_exc])) /
+    (param[i_C_m] * (param[i_tau_m] - param[i_tau_syn_exc]));
+
+  param[i___P__V_m__I_syn_inh] =
+    param[i_tau_m] * param[i_tau_syn_inh] *
+    (expf(param[i___h] / param[i_tau_m]) - expf(param[i___h] / param[i_tau_syn_inh])) *
+    expf((-param[i___h]) * (param[i_tau_m] + param[i_tau_syn_inh]) /
+         (param[i_tau_m] * param[i_tau_syn_inh])) /
+    (param[i_C_m] * (param[i_tau_m] - param[i_tau_syn_inh]));
+
+  param[i___P__V_m__V_m] = expf((-param[i___h]) / param[i_tau_m]);
+  param[i___P__refr_t__refr_t] = 1.0f;
+}
+
+/*
+ * ============================================================
+ * ANALYTIC UPDATE KERNEL (unchanged)
  * ============================================================
  */
- /*
- * NOTE:
- *------
- * iaf_psc_exp_neuron_nestml_Update (analytic solver)
- * is bypassed entirely when USE_ODEINT_THRUST is enabled.
- */
-
-__global__ void iaf_psc_exp_neuron_nestml_Update(int n_node, int i_node_0, float *var_arr,
-				   float *param_arr, int n_var, int n_param)
+__global__ void iaf_psc_exp_neuron_nestml_Update(
+    int n_node,
+    int i_node_0,
+    float* var_arr,
+    float* param_arr,
+    int n_var,
+    int n_param)
 {
-  int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
-  if (i_neuron < n_node) {
-    float *var = var_arr + n_var*i_neuron;
-    float *param = param_arr + n_param*i_neuron;
-    /**
-     * subthreshold updates of the convolution variables
-     *
-     * step 1: regardless of whether and how integrate_odes() will be called, update variables due to convolutions
-    **/
+  const int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i_neuron >= n_node)
+    return;
 
-    /**
-     * Begin NESTML generated code for the update block(s)
-    **/
-  if (var[i_refr_t] > 0)
-  {  
+  float* var   = var_arr   + n_var   * i_neuron;
+  float* param = param_arr + n_param * i_neuron;
 
-    // start rendered code for integrate_odes(I_syn_exc, I_syn_inh, refr_t)
-
-    // analytic solver: integrating state variables (first step): I_syn_exc, I_syn_inh, refr_t, 
+  if (var[i_refr_t] > 0.0f)
+  {
+    // integrate_odes(I_syn_exc, I_syn_inh, refr_t)
     const double I_syn_exc__tmp = var[i_I_syn_exc] * param[i___P__I_syn_exc__I_syn_exc];
     const double I_syn_inh__tmp = var[i_I_syn_inh] * param[i___P__I_syn_inh__I_syn_inh];
-    const double refr_t__tmp = param[i___P__refr_t__refr_t] * var[i_refr_t] - 1.0 * param[i___h];
-    // analytic solver: integrating state variables (second step): I_syn_exc, I_syn_inh, refr_t, 
-    /* replace analytically solvable variables with precisely integrated values  */
-    var[i_I_syn_exc] = I_syn_exc__tmp;
-    var[i_I_syn_inh] = I_syn_inh__tmp;
-    var[i_refr_t] = refr_t__tmp;
+    const double refr_t__tmp    = param[i___P__refr_t__refr_t] * var[i_refr_t] - 1.0 * param[i___h];
+
+    var[i_I_syn_exc] = (float) I_syn_exc__tmp;
+    var[i_I_syn_inh] = (float) I_syn_inh__tmp;
+    var[i_refr_t]    = (float) refr_t__tmp;
   }
   else
-  {  
-
-    // start rendered code for integrate_odes(I_syn_exc, I_syn_inh, V_m)
-
-    // analytic solver: integrating state variables (first step): I_syn_exc, I_syn_inh, V_m, 
+  {
+    // integrate_odes(I_syn_exc, I_syn_inh, V_m)
     const double I_syn_exc__tmp = var[i_I_syn_exc] * param[i___P__I_syn_exc__I_syn_exc];
     const double I_syn_inh__tmp = var[i_I_syn_inh] * param[i___P__I_syn_inh__I_syn_inh];
-    const double V_m__tmp = (-param[i_E_L]) * param[i___P__V_m__V_m] + param[i_E_L] + var[i_I_syn_exc] * param[i___P__V_m__I_syn_exc] + var[i_I_syn_inh] * param[i___P__V_m__I_syn_inh] + var[i_V_m] * param[i___P__V_m__V_m] - param[i_I_e] * param[i___P__V_m__V_m] * param[i_tau_m] / param[i_C_m] + param[i_I_e] * param[i_tau_m] / param[i_C_m] - param[i_I_stim] * param[i___P__V_m__V_m] * param[i_tau_m] / param[i_C_m] + param[i_I_stim] * param[i_tau_m] / param[i_C_m];
-    // analytic solver: integrating state variables (second step): I_syn_exc, I_syn_inh, V_m, 
-    /* replace analytically solvable variables with precisely integrated values  */
-    var[i_I_syn_exc] = I_syn_exc__tmp;
-    var[i_I_syn_inh] = I_syn_inh__tmp;
-    var[i_V_m] = V_m__tmp;
+    const double V_m__tmp =
+      (-param[i_E_L]) * param[i___P__V_m__V_m] + param[i_E_L]
+      + var[i_I_syn_exc] * param[i___P__V_m__I_syn_exc]
+      + var[i_I_syn_inh] * param[i___P__V_m__I_syn_inh]
+      + var[i_V_m] * param[i___P__V_m__V_m]
+      - param[i_I_e]   * param[i___P__V_m__V_m] * param[i_tau_m] / param[i_C_m]
+      + param[i_I_e]   * param[i_tau_m] / param[i_C_m]
+      - param[i_I_stim]* param[i___P__V_m__V_m] * param[i_tau_m] / param[i_C_m]
+      + param[i_I_stim]* param[i_tau_m] / param[i_C_m];
+
+    var[i_I_syn_exc] = (float) I_syn_exc__tmp;
+    var[i_I_syn_inh] = (float) I_syn_inh__tmp;
+    var[i_V_m]       = (float) V_m__tmp;
   }
 
-    /**
-     * Begin NESTML generated code for the onReceive block(s)
-    **/
+  // onReceive
+  if (var[N_SCAL_VAR + i_exc_spikes] != 0.0f)
+  {
+    var[i_I_syn_exc] += (0.001f * var[N_SCAL_VAR + i_exc_spikes]) * 1000.0f;
+    var[N_SCAL_VAR + i_exc_spikes] = 0.0f;
+  }
+  if (var[N_SCAL_VAR + i_inh_spikes] != 0.0f)
+  {
+    var[i_I_syn_inh] += (0.001f * var[N_SCAL_VAR + i_inh_spikes]) * 1000.0f;
+    var[N_SCAL_VAR + i_inh_spikes] = 0.0f;
+  }
 
-    if (var[N_SCAL_VAR + i_exc_spikes])
-    {      
-      var[i_I_syn_exc] += (0.001 * var[N_SCAL_VAR + i_exc_spikes]) * 1.0 * 1000.0;      
-      var[N_SCAL_VAR + i_exc_spikes] = 0; // reset the value
-    }
-    if (var[N_SCAL_VAR + i_inh_spikes])
-    {      
-      var[i_I_syn_inh] += (0.001 * var[N_SCAL_VAR + i_inh_spikes]) * 1.0 * 1000.0;      
-      var[N_SCAL_VAR + i_inh_spikes] = 0; // reset the value
-    }
-
-    /**
-     * subthreshold updates of the convolution variables
-     *
-     * step 2: regardless of whether and how integrate_odes() was called, update variables due to convolutions. Set to the updated values at the end of the timestep.
-    **/
-
-    /**
-     * Begin NESTML generated code for the onCondition block(s)
-    **/
-
-    if (var[i_refr_t] <= 0 && var[i_V_m] >= param[i_V_th])
-    {
-      var[i_refr_t] = param[i_refr_T];
-      var[i_V_m] = param[i_V_reset];
-      PushSpike(i_node_0 + i_neuron, 1.0);;
-    }
+  // onCondition
+  if (var[i_refr_t] <= 0.0f && var[i_V_m] >= param[i_V_th])
+  {
+    var[i_refr_t] = param[i_refr_T];
+    var[i_V_m]    = param[i_V_reset];
+    PushSpike(i_node_0 + i_neuron, 1.0);
   }
 }
 
+// ------------------------------------------------------------
+// Class methods
+// ------------------------------------------------------------
 
 iaf_psc_exp_neuron_nestml::~iaf_psc_exp_neuron_nestml()
-{ 
-// it was FreeVarArr(); and FreeParamArr();
-// I changed it to Free() 
-// Destructor delegates all cleanup to Free()
-// to ensure identical behavior in all execution paths
+{
+  // Ensure consistent cleanup (analytic + numeric)
   Free();
 }
 
-int iaf_psc_exp_neuron_nestml::Init(int i_node_0, int n_node, int /*n_port*/,
-			 int i_group)
+int iaf_psc_exp_neuron_nestml::Init(
+    int i_node_0,
+    int n_node,
+    int /*n_port*/,
+    int i_group)
 {
   BaseNeuron::Init(i_node_0, n_node, 2 /*n_port*/, i_group);
   node_type_ = i_iaf_psc_exp_neuron_nestml_model;
@@ -222,133 +221,106 @@ int iaf_psc_exp_neuron_nestml::Init(int i_node_0, int n_node, int /*n_port*/,
   // State variables
   n_scal_var_ = N_SCAL_VAR;
   n_port_var_ = N_PORT_VAR;
-  n_var_ = n_scal_var_ + n_port_var_;
+  n_var_      = n_scal_var_ + n_port_var_;
 
   // Parameters
   n_scal_param_ = N_SCAL_PARAM;
-  n_param_ = n_scal_param_;
+  n_param_      = n_scal_param_;
 
   AllocParamArr();
   AllocVarArr();
-  
-  // new if statment 
+
 #if USE_ODEINT_THRUST
-  // Initialize experimental numeric solver
-  odeint_solver_ =
-    new IafPscExpOdeintSolver<N_SCAL_VAR>(
-      n_node_, var_arr_, n_var_);
-#endif  
+  // Host-driven numeric solver.
+  // We pass var_arr_ and param_arr_ (device pointers) + their strides.
+  odeint_solver_ = new IafPscExpOdeintSolver(
+      n_node_, var_arr_, n_var_,
+      param_arr_, n_param_);
+#endif
 
-  scal_var_name_ = iaf_psc_exp_neuron_nestml_scal_var_name;
+  scal_var_name_   = iaf_psc_exp_neuron_nestml_scal_var_name;
   scal_param_name_ = iaf_psc_exp_neuron_nestml_scal_param_name;
-  port_var_name_ = iaf_psc_exp_neuron_nestml_port_var_name;
+  port_var_name_   = iaf_psc_exp_neuron_nestml_port_var_name;
 
-  // Parameters
-    SetScalParam(0, n_node, "C_m", 
-  250);  // as pF
-    SetScalParam(0, n_node, "tau_m", 
-  10);  // as ms
-    SetScalParam(0, n_node, "tau_syn_inh", 
-  2);  // as ms
-    SetScalParam(0, n_node, "tau_syn_exc", 
-  2);  // as ms
-    SetScalParam(0, n_node, "refr_T", 
-  2);  // as ms
-    SetScalParam(0, n_node, "E_L", 
-  (-70));  // as mV
-    SetScalParam(0, n_node, "V_reset", 
-  (-70));  // as mV
-    SetScalParam(0, n_node, "V_th", 
-  (-55));  // as mV
-    SetScalParam(0, n_node, "I_e", 
-  0);  // as pA
+  // Parameters (defaults)
+  SetScalParam(0, n_node, "C_m",         250);   // pF
+  SetScalParam(0, n_node, "tau_m",       10);    // ms
+  SetScalParam(0, n_node, "tau_syn_inh", 2);     // ms
+  SetScalParam(0, n_node, "tau_syn_exc", 2);     // ms
+  SetScalParam(0, n_node, "refr_T",      2);     // ms
+  SetScalParam(0, n_node, "E_L",         -70);   // mV
+  SetScalParam(0, n_node, "V_reset",     -70);   // mV
+  SetScalParam(0, n_node, "V_th",        -55);   // mV
+  SetScalParam(0, n_node, "I_e",         0);     // pA
 
-    // Internal variables
-    SetScalParam(0, n_node, "__h", 0.0);
-    SetScalParam(0, n_node, "__P__I_syn_exc__I_syn_exc", 0.0);
-    SetScalParam(0, n_node, "__P__I_syn_inh__I_syn_inh", 0.0);
-    SetScalParam(0, n_node, "__P__V_m__I_syn_exc", 0.0);
-    SetScalParam(0, n_node, "__P__V_m__I_syn_inh", 0.0);
-    SetScalParam(0, n_node, "__P__V_m__V_m", 0.0);
-    SetScalParam(0, n_node, "__P__refr_t__refr_t", 0.0);
+  // Internal variables (analytic solver precomputation)
+  SetScalParam(0, n_node, "__h", 0.0);
+  SetScalParam(0, n_node, "__P__I_syn_exc__I_syn_exc", 0.0);
+  SetScalParam(0, n_node, "__P__I_syn_inh__I_syn_inh", 0.0);
+  SetScalParam(0, n_node, "__P__V_m__I_syn_exc", 0.0);
+  SetScalParam(0, n_node, "__P__V_m__I_syn_inh", 0.0);
+  SetScalParam(0, n_node, "__P__V_m__V_m", 0.0);
+  SetScalParam(0, n_node, "__P__refr_t__refr_t", 0.0);
 
-    // Continuous input port: set to 0
-    SetScalParam(0, n_node, "I_stim", 0.0);
+  // Continuous input port
+  SetScalParam(0, n_node, "I_stim", 0.0);
 
-    // State variables
-    SetScalVar(0, n_node, "V_m", 
-  *GetScalParam(0, n_node, "E_L"));
-    SetScalVar(0, n_node, "refr_t", 
-  0);
-    SetScalVar(0, n_node, "I_syn_exc", 
-  0);
-    SetScalVar(0, n_node, "I_syn_inh", 
-  0);
+  // State variables
+  SetScalVar(0, n_node, "V_m", *GetScalParam(0, n_node, "E_L"));
+  SetScalVar(0, n_node, "refr_t", 0);
+  SetScalVar(0, n_node, "I_syn_exc", 0);
+  SetScalVar(0, n_node, "I_syn_inh", 0);
 
-  // multiplication factor of input signal is always 1 for all nodes
-  float input_weight = 1.0;
+  // Input weight (continuous input) - unchanged
+  float input_weight = 1.0f;
   gpuErrchk(cudaMalloc(&port_weight_arr_, sizeof(float)));
   gpuErrchk(cudaMemcpy(port_weight_arr_, &input_weight,
-			 sizeof(float), cudaMemcpyHostToDevice));
-  port_weight_arr_step_ = 0;
-  port_weight_port_step_ = 0;
+                       sizeof(float), cudaMemcpyHostToDevice));
+  port_weight_arr_step_      = 0;
+  port_weight_port_step_     = 0;
 
-  // process the input spikes
-  port_input_arr_ = GetVarArr() + n_scal_var_ + GetPortVarIdx("exc_spikes");
-  port_input_arr_step_ = n_var_;
-  port_input_port_step_ = 1;
-
-
-
+  // Process the input spikes
+  port_input_arr_            = GetVarArr() + n_scal_var_ + GetPortVarIdx("exc_spikes");
+  port_input_arr_step_       = n_var_;
+  port_input_port_step_      = 1;
 
   return 0;
 }
 
-int iaf_psc_exp_neuron_nestml::Calibrate(
-    double /*time_min*/,
-    float time_resolution)
+int iaf_psc_exp_neuron_nestml::Calibrate(double /*time_min*/, float time_resolution)
 {
 #if !USE_ODEINT_THRUST
-  iaf_psc_exp_neuron_nestml_Calibrate<<<
-    (n_node_ + 1023) / 1024, 1024>>>(
+  // Analytic solver needs calibration coefficients
+  iaf_psc_exp_neuron_nestml_Calibrate<<<(n_node_ + 1023) / 1024, 1024>>>(
       n_node_, param_arr_, n_param_, time_resolution);
+#else
+  // Numeric solver: no analytic precomputation required
+  (void) time_resolution;
 #endif
   return 0;
 }
 
-// it's changed 
-int iaf_psc_exp_neuron_nestml::Update(
-    long long /*it*/,
-    double t1)
+int iaf_psc_exp_neuron_nestml::Update(long long /*it*/, double t1)
 {
 #if USE_ODEINT_THRUST
-  // ===================================
-  //  NUMERIC INTEGRATION (HOST-DRIVEN)
-  // ===================================
-  float dt = NESTGPUTimeResolution;
-  float t0 = static_cast<float>(t1 - dt);
+  // Numeric integration (host-driven, device execution via Thrust)
+  const float dt = NESTGPUTimeResolution;
+  const float t0 = static_cast<float>(t1) - dt;
 
   odeint_solver_->Step(t0, dt);
 
-  // =================================
-  // EVENT HANDLING (DEVICE KERNEL)
-  // =================================
-  iaf_psc_exp_neuron_nestml_PostUpdate<<<
-    (n_node_ + 1023) / 1024, 1024>>>(
-      n_node_, i_node_0_, var_arr_, param_arr_,
-      n_var_, n_param_);
-
+  // Event handling after integration (device kernel)
+  iaf_psc_exp_neuron_nestml_PostUpdate<<<(n_node_ + 1023) / 1024, 1024>>>(
+      n_node_, i_node_0_, var_arr_, param_arr_, n_var_, n_param_);
 #else
-  // (unchanged) analytic solver
-  iaf_psc_exp_neuron_nestml_Update<<<
-    (n_node_ + 1023) / 1024, 1024>>>(
-      n_node_, i_node_0_, var_arr_, param_arr_,
-      n_var_, n_param_);
+  // Original analytic solver (unchanged)
+  iaf_psc_exp_neuron_nestml_Update<<<(n_node_ + 1023) / 1024, 1024>>>(
+      n_node_, i_node_0_, var_arr_, param_arr_, n_var_, n_param_);
 #endif
 
   return 0;
 }
-// just the if statement is new 
+
 int iaf_psc_exp_neuron_nestml::Free()
 {
 #if USE_ODEINT_THRUST

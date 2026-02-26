@@ -1,133 +1,147 @@
 /*
  *  iaf_psc_exp_odeint_solver.cu
  *
- *  Experimental numeric solver for iaf_psc_exp neuron model
- *  using Boost.odeint structure with Thrust.
+ *  Numeric solver implementation for iaf_psc_exp using Thrust.
  *
- *  NOTES:
- *  -------
- * 
- *  - This solver mimics odeint's execution model:
- *      host-side step() → thrust::for_each → device kernel
- *  - No neuron-local callbacks are possible.
- *  - No event handling is integrated.
+ * MODEL (iaf_psc_exp ODEs):
+ * -------------------------
+ * Synaptic currents (exponential decay):
+ *   dI_exc/dt = -I_exc / tau_syn_exc
+ *   dI_inh/dt = -I_inh / tau_syn_inh
  *
- *  This highlights the architectural mismatch between
- *  odeint and NEST GPU.
+ * Membrane potential:
+ *   dV/dt = -(V - E_L)/tau_m + (I_exc + I_inh + I_e + I_stim)/C_m
+ *
+ * Refractory timer:
+ *   if refr_t > 0: refr_t decreases with slope -1 (ms/ms)
+ *   else: refr_t stays <= 0 (no integration needed)
+ *
+ * IMPORTANT:
+ * ----------
+ * No onReceive or threshold check here.
+ * Because those are handled by iaf_psc_exp_neuron_nestml_PostUpdate().
  */
 
 #include "iaf_psc_exp_odeint_solver.h"
 
-/*
- * Device functor executed by Thrust.
- *
- * Each invocation updates ONE neuron.
- *
- * LIMITATIONS:
- * -----------
- * - No access to spike buffers
- * - No threshold checks
- * - No reset logic
- * - No access to end_time_step
- *
- * This is the core reason why odeint does not fit well.
- */
-template<int NVAR>
-struct IafEulerStepFunctor
+// Keep indices consistent with iaf_psc_exp_neuron_nestml.h
+// (duplicated here to avoid circular includes)
+namespace iaf_psc_exp_idx
+{
+  // var indices
+  constexpr int i_V_m      = 0;
+  constexpr int i_refr_t   = 1;
+  constexpr int i_I_exc    = 2;
+  constexpr int i_I_inh    = 3;
+
+  // param indices
+  constexpr int i_C_m         = 0;
+  constexpr int i_tau_m       = 1;
+  constexpr int i_tau_syn_inh = 2;
+  constexpr int i_tau_syn_exc = 3;
+  constexpr int i_refr_T      = 4;
+  constexpr int i_E_L         = 5;
+  constexpr int i_V_reset     = 6;
+  constexpr int i_V_th        = 7;
+  constexpr int i_I_e         = 8;
+  // ... analytic precomp indices omitted
+  constexpr int i_I_stim      = 16;
+}
+
+// ------------------------------------------------------------
+// Device functor (Euler step) executed by Thrust
+// ------------------------------------------------------------
+struct IafPscExpEulerFunctor
 {
   float* var;
-  int stride;
+  int var_stride;
+  float* par;
+  int par_stride;
   float dt;
 
   __host__ __device__
   void operator()(int i_neuron) const
   {
-    // Pointer to state variables of one neuron
-    float* y = var + i_neuron * stride;
+    float* y = var + i_neuron * var_stride;
+    float* p = par + i_neuron * par_stride;
 
-    // State layout:
-    // y[0] = V_m
-    // y[1] = refr_t
-    // y[2] = I_syn_exc
-    // y[3] = I_syn_inh
+    const float V      = y[iaf_psc_exp_idx::i_V_m];
+    const float refr_t = y[iaf_psc_exp_idx::i_refr_t];
+    const float Iexc   = y[iaf_psc_exp_idx::i_I_exc];
+    const float Iinh   = y[iaf_psc_exp_idx::i_I_inh];
 
-    // ----------------------------
-    // it's a VERY SIMPLE NUMERIC MODEL (just an example to show the limits)
-    // ----------------------------
+    const float C_m         = p[iaf_psc_exp_idx::i_C_m];
+    const float tau_m       = p[iaf_psc_exp_idx::i_tau_m];
+    const float tau_syn_exc = p[iaf_psc_exp_idx::i_tau_syn_exc];
+    const float tau_syn_inh = p[iaf_psc_exp_idx::i_tau_syn_inh];
+    const float E_L         = p[iaf_psc_exp_idx::i_E_L];
+    const float I_e         = p[iaf_psc_exp_idx::i_I_e];
+    const float I_stim      = p[iaf_psc_exp_idx::i_I_stim];
 
-    // dI/dt = -I
-    y[2] += dt * (-y[2]);
-    y[3] += dt * (-y[3]);
+    // ---- Synaptic current decay (always active) ----
+    // Euler: I(t+dt) = I(t) + dt * (-I/tau)
+    float Iexc_new = Iexc + dt * (-Iexc / tau_syn_exc);
+    float Iinh_new = Iinh + dt * (-Iinh / tau_syn_inh);
 
-    // dV/dt = -V
-    y[0] += dt * (-y[0]);
+    // ---- Refractory handling ----
+    if (refr_t > 0.0f)
+    {
+      // Refractory: V_m is clamped (no change), refr_t decreases.
+      float refr_new = refr_t - dt;
 
-    // drefr_t/dt = -1
-    y[1] += dt * (-1.0f);
+      y[iaf_psc_exp_idx::i_I_exc]  = Iexc_new;
+      y[iaf_psc_exp_idx::i_I_inh]  = Iinh_new;
+      y[iaf_psc_exp_idx::i_refr_t] = refr_new;
+      // y[V_m] unchanged on purpose
+      return;
+    }
 
-    // NOTE:
-    //------
-    // No threshold detection here.
-    // No spike generation.
-    // No reset.
+    // ---- Normal subthreshold dynamics ----
+    // dV/dt = -(V - E_L)/tau_m + (Iexc + Iinh + I_e + I_stim)/C_m
+    const float I_total = Iexc + Iinh + I_e + I_stim;
+    const float dVdt = (-(V - E_L) / tau_m) + (I_total / C_m);
+
+    const float V_new = V + dt * dVdt;
+
+    y[iaf_psc_exp_idx::i_V_m]    = V_new;
+    y[iaf_psc_exp_idx::i_I_exc]  = Iexc_new;
+    y[iaf_psc_exp_idx::i_I_inh]  = Iinh_new;
+    // refr_t remains <= 0 and is not advanced
   }
 };
 
-template<int NVAR>
-IafPscExpOdeintSolver<NVAR>::IafPscExpOdeintSolver(
+// ------------------------------------------------------------
+// Solver class methods
+// ------------------------------------------------------------
+
+IafPscExpOdeintSolver::IafPscExpOdeintSolver(
     int n_neuron,
     float* var_arr,
-    int stride)
+    int var_stride,
+    float* param_arr,
+    int par_stride)
 : n_(n_neuron)
 , var_(var_arr)
-, stride_(stride)
+, var_stride_(var_stride)
+, par_(param_arr)
+, par_stride_(par_stride)
 {
   // Nothing else to initialize.
-  // We explicitly rely on NEST GPU memory ownership.
+  // Ownership of var_/par_ stays in NEST GPU.
 }
 
-template<int NVAR>
-void IafPscExpOdeintSolver<NVAR>::Step(float /*t0*/, float dt)
+void IafPscExpOdeintSolver::Step(float /*t0*/, float dt)
 {
-  /*
-   * IMPORTANT ARCHITECTURAL POINT:
-   * ------------------------------
-   * This function is called on the HOST.
-   * Thrust internally launches GPU kernels,
-   * but the control flow remains host-driven.
-   *
-   * There is NO way to:
-   *  - call ExternalUpdate()
-   *  - react to spikes during integration
-   *  - adapt step size per neuron
-   */
-
   thrust::counting_iterator<int> begin(0);
   thrust::counting_iterator<int> end(n_);
 
-  IafEulerStepFunctor<NVAR> functor;
-  functor.var = var_;
-  functor.stride = stride_;
-  functor.dt = dt;
+  IafPscExpEulerFunctor f;
+  f.var        = var_;
+  f.var_stride = var_stride_;
+  f.par        = par_;
+  f.par_stride = par_stride_;
+  f.dt         = dt;
 
-  // Launch Thrust kernel
-  thrust::for_each(begin, end, functor);
-
-  /*
-   * After this point:
-   * - State variables have been updated numerically
-   * - NO event handling has occurred
-   *
-   * NEST GPU must now run a separate kernel
-   * to process:
-   *   - onReceive
-   *   - onCondition
-   *   - spike emission
-   *
-   * This split is exactly what breaks the
-   * clean neuron-local update semantics.
-   */
+  // Force device execution policy
+  thrust::for_each(thrust::device, begin, end, f);
 }
-
-// Explicit template instantiation
-template class IafPscExpOdeintSolver<4>;

@@ -1,4 +1,3 @@
-
 /*
  *  iaf_psc_exp_neuron_nestml.h
  *
@@ -26,15 +25,18 @@
 
 #include <iostream>
 #include <string>
+
 #include "cuda_error.h"
 #include "node_group.h"
 #include "base_neuron.h"
 #include "neuron_models.h"
 
-// ================= (important) EXPERIMENT SWITCH =================
-// 0 → original analytic solver (correct, fast, local)
-// 1 → numeric solver using odeint + Thrust (experimental)
-#define USE_ODEINT_THRUST 1
+// ================= EXPERIMENT SWITCH =================
+// 0 -> original analytic solver (unchanged)
+// 1 -> numeric solver using "odeint-style" + Thrust (experimental)
+#ifndef USE_ODEINT_THRUST
+#define USE_ODEINT_THRUST 0
+#endif
 // ====================================================
 
 #if USE_ODEINT_THRUST
@@ -43,6 +45,8 @@
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
+// Note: In NEST GPU this is typically stored in __constant__ device memory.
+// The existing code uses it also from host-side logic (Update()).
 extern __constant__ float NESTGPUTimeResolution;
 
 namespace iaf_psc_exp_neuron_nestml_ns
@@ -114,25 +118,23 @@ const std::string iaf_psc_exp_neuron_nestml_port_var_name[N_PORT_VAR] = {
   "inh_spikes",
 };
 
-}; //namespace
+} // namespace iaf_psc_exp_neuron_nestml_ns
 
 class iaf_psc_exp_neuron_nestml : public BaseNeuron
 {
-  public:
-    ~iaf_psc_exp_neuron_nestml();
-// this if statement is new 
+public:
+  ~iaf_psc_exp_neuron_nestml();
+
 #if USE_ODEINT_THRUST
-  //  (new) Host-driven numeric solver (experimental)
-  IafPscExpOdeintSolver<N_SCAL_VAR>* odeint_solver_;
-#endif   
+  // Host-driven numeric solver.
+  // Owns only solver object, NOT var_arr_/param_arr_ (NEST GPU owns those).
+  IafPscExpOdeintSolver* odeint_solver_ = nullptr;
+#endif
 
   int Init(int i_node_0, int n_neuron, int n_port, int i_group);
-
-  int Calibrate(double, float time_resolution);
-
+  int Calibrate(double time_min, float time_resolution);
   int Update(long long it, double t1);
-
   int Free();
 };
 
-#endif
+#endif // IAF_PSC_EXP_NEURON_NESTML_H

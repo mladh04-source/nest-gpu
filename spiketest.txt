@@ -1,0 +1,98 @@
+cat > /p/project1/cslns/natouf1/nest-gpu/compare_smoke.py <<'PY'
+import nestgpu
+
+nestgpu.SetTimeResolution(0.1)
+nestgpu.SetRandomSeed(12345)
+nestgpu.SetVerbosityLevel(0)
+
+N = 200
+neurons = nestgpu.Create("iaf_psc_exp", N)
+
+# Enable spike counting 
+nestgpu.ActivateSpikeCount(neurons)
+
+nestgpu.Simulate(100.0)
+
+i0 = int(neurons[0])   # first neuron id
+#  First retrieve all possible status keys 
+scal_vars = nestgpu.GetScalVarNames(i0)      
+int_vars  = nestgpu.GetIntVarNames(i0)       
+params    = nestgpu.GetScalParamNames(i0)    
+
+print("ScalVars:", scal_vars)
+print("IntVars :", int_vars)
+print("Params  :", params)
+
+#  Search for spike count candidates 
+cands = [v for v in int_vars if "spike" in v.lower() and "count" in v.lower()]
+print("SpikeCount candidates:", cands)
+
+if not cands:
+    raise RuntimeError("No spike_count-like IntVar found. See IntVars above.")
+
+k = cands[0]
+
+#  Retrieve SpikeCount
+counts = nestgpu.GetNeuronStatus(neurons, k)
+
+# output
+flat = []
+for c in counts:
+    if isinstance(c, list):
+        flat.extend(c)
+    else:
+        flat.append(c)
+
+total = sum(flat)
+
+print("Using var:", k)
+print("TOTAL spikes:", total)
+print("First 10 counts:", flat[:10])
+PY
+
+
+
+-------------------- both results-----------
+----------anylytic------------
+(venv_nestgpu) [natouf1@jsfc017 ~]$ source /p/project1/cslns/natouf1/nest-gpu/install_analytic/bin/nestgpu_vars.sh
+python /p/project1/cslns/natouf1/nest-gpu/compare_smoke.py | tee analytic.out
+
+              -- NEST GPU --
+
+  Copyright (C) 2021 The NEST Initiative
+
+ This program is provided AS IS and comes with
+ NO WARRANTY. See the file LICENSE for details.
+
+ Homepage: https://github.com/nest/nest-gpu
+
+ScalVars: ['I_syn_ex', 'I_syn_in', 'V_m_rel', 'refractory_step']
+IntVars : ['spike_count']
+Params  : ['tau_m', 'C_m', 'E_L', 'I_e', 'Theta_rel', 'V_reset_rel', 'tau_ex', 'tau_in', 't_ref', 'den_delay', 'P20', 'P11ex', 'P11in', 'P21ex', 'P21in', 'P22']
+SpikeCount candidates: ['spike_count']
+Using var: spike_count
+TOTAL spikes: 0
+First 10 counts: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+-------------------------------numaric-----
+
+(venv_nestgpu) [natouf1@jsfc017 ~]$ source /p/project1/cslns/natouf1/nest-gpu/install_numeric/bin/nestgpu_vars.sh
+python /p/project1/cslns/natouf1/nest-gpu/compare_smoke.py | tee numeric.out
+
+              -- NEST GPU --
+
+  Copyright (C) 2021 The NEST Initiative
+
+ This program is provided AS IS and comes with
+ NO WARRANTY. See the file LICENSE for details.
+
+ Homepage: https://github.com/nest/nest-gpu
+
+ScalVars: ['I_syn_ex', 'I_syn_in', 'V_m_rel', 'refractory_step']
+IntVars : ['spike_count']
+Params  : ['tau_m', 'C_m', 'E_L', 'I_e', 'Theta_rel', 'V_reset_rel', 'tau_ex', 'tau_in', 't_ref', 'den_delay', 'P20', 'P11ex', 'P11in', 'P21ex', 'P21in', 'P22']
+SpikeCount candidates: ['spike_count']
+Using var: spike_count
+TOTAL spikes: 0
+First 10 counts: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
