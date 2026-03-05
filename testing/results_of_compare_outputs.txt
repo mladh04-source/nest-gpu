@@ -1,0 +1,13 @@
+# bash command 
+python3 compare_outputs.py 
+
+# results
+Using: output_vm_analytic_774602.txt 
+Using: output_vm_numeric_774603.txt 
+Samples compared: 2001 
+# RMSE = Root Mean Square Error (standert Abweichung)
+RMSE: 0.0 
+Relative RMSE: 0.0
+
+***RMSE = 0.0 mean,  the  numeric path produces exactly the same 
+𝑉_𝑚 values in the comparison test as the analytic path***

@@ -1,10 +1,13 @@
+# it's just for bash, a command
 cat > /p/project1/cslns/natouf1/nest-gpu/compare_smoke.py <<'PY'
+
 import nestgpu
 
 nestgpu.SetTimeResolution(0.1)
 nestgpu.SetRandomSeed(12345)
 nestgpu.SetVerbosityLevel(0)
 
+# network size
 N = 200
 neurons = nestgpu.Create("iaf_psc_exp", N)
 
@@ -48,12 +51,14 @@ total = sum(flat)
 print("Using var:", k)
 print("TOTAL spikes:", total)
 print("First 10 counts:", flat[:10])
+
+# it's just for bash 
 PY
 
 
 
--------------------- both results-----------
-----------anylytic------------
+-------------------- both results--------------------
+----------anylytic----------
 (venv_nestgpu) [natouf1@jsfc017 ~]$ source /p/project1/cslns/natouf1/nest-gpu/install_analytic/bin/nestgpu_vars.sh
 python /p/project1/cslns/natouf1/nest-gpu/compare_smoke.py | tee analytic.out
 
@@ -74,7 +79,7 @@ Using var: spike_count
 TOTAL spikes: 0
 First 10 counts: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
--------------------------------numaric-----
+----------numaric----------
 
 (venv_nestgpu) [natouf1@jsfc017 ~]$ source /p/project1/cslns/natouf1/nest-gpu/install_numeric/bin/nestgpu_vars.sh
 python /p/project1/cslns/natouf1/nest-gpu/compare_smoke.py | tee numeric.out
