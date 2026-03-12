@@ -12,7 +12,10 @@ ml Stages/2026 GCC OpenMPI CUDA GSL Python SciPy-Stack mpi4py CMake Autotools
 
 source /p/project1/cslns/natouf1/nest-gpu/install_analytic/bin/nestgpu_vars.sh
 
-export OUTFILE="$SLURM_SUBMIT_DIR/output_vm_analytic_${SLURM_JOB_ID}.txt"
+export LD_LIBRARY_PATH="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))"):${LD_LIBRARY_PATH}"
 
-srun --export=ALL python3 $SLURM_SUBMIT_DIR/test_iaf_psc_exp_compare.py
+
+export OUTFILE=output_vm_analytic.txt
+export PLOT_FILE=iaf_psc_exp_plot_analytic.png
+python3 /p/project1/cslns/natouf1/test_iaf_psc_exp_compare.py
 
