@@ -131,7 +131,8 @@ public:
   IafPscExpOdeintSolver* odeint_solver_ = nullptr;
 #endif
 
-  int Init(int i_node_0, int n_neuron, int n_port, int i_group);
+  int Init(int i_node_0, int n_neuron, int n_port, int i_group,
+         unsigned long long* seed = nullptr);
   int Calibrate(double time_min, float time_resolution);
   int Update(long long it, double t1);
   int Free();

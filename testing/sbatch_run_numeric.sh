@@ -18,6 +18,6 @@ export LD_LIBRARY_PATH="$(python3 -c "import sysconfig; print(sysconfig.get_conf
 
 
 export OUTFILE=output_vm_numeric.txt
-export PLOT_FILE=iaf_psc_exp_plot_numeric.png
-python3 /p/project1/cslns/natouf1/test_iaf_psc_exp_compare.py
+export PLOT_FILE=iaf_psc_exp_neuron_nestml_plot_numeric.png
+python3 /p/project1/cslns/natouf1/test_iaf_psc_exp_neuron_nestml_compare.py
 

@@ -15,19 +15,20 @@ outfile = os.environ.get("OUTFILE", "output_vm.txt")
 reference_file = os.environ.get("REFERENCE_FILE", "")
 
 # Plot output
-plot_file = os.environ.get("PLOT_FILE", "iaf_psc_exp_plot.png")
+plot_file = os.environ.get("PLOT_FILE", "iaf_psc_exp_neuron_nestml_plot.png")
 
 # Setup NEST GPU
 ngpu.SetTimeResolution(0.1)
 ngpu.SetRandomSeed(123)
 
 # Create neuron
-neuron = ngpu.Create("iaf_psc_exp", 1)
+neuron = ngpu.Create("iaf_psc_exp_neuron_nestml", 1)
 
 
 #spike-generator input.
 ngpu.SetStatus(neuron, {
-    "I_e": 1500.0,
+
+    "I_e": 200.0,# changed from 1500
     "tau_m": 10.0,
     "C_m": 250.0,
     "E_L": -70.0
@@ -38,7 +39,7 @@ ngpu.SetStatus(neuron, {
 spike = ngpu.Create("spike_generator")
 
 # Example spike times in ms
-spike_times = [10.0, 400.0]
+spike_times = [10.0, 50.0] # changed from [10.0, 400.0]
 n_spikes = len(spike_times)
 
 # Set spike times
@@ -55,7 +56,7 @@ syn_spec_ex = {
 ngpu.Connect(spike, neuron, conn_spec, syn_spec_ex)
 
 # Record membrane potential
-record = ngpu.CreateRecord("", ["V_m_rel"], [neuron[0]], [0])
+record = ngpu.CreateRecord("", ["V_m"], [neuron[0]], [0])
 
 # Simulate
 sim_time = 500.0

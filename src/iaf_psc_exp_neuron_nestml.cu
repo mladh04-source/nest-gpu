@@ -209,13 +209,10 @@ iaf_psc_exp_neuron_nestml::~iaf_psc_exp_neuron_nestml()
   Free();
 }
 
-int iaf_psc_exp_neuron_nestml::Init(
-    int i_node_0,
-    int n_node,
-    int /*n_port*/,
-    int i_group)
+int iaf_psc_exp_neuron_nestml::Init(int i_node_0, int n_node, int /*n_port*/,
+                                    int i_group, unsigned long long* seed)
 {
-  BaseNeuron::Init(i_node_0, n_node, 2 /*n_port*/, i_group);
+  BaseNeuron::Init(i_node_0, n_node, 2 /*n_port*/, i_group, seed);
   node_type_ = i_iaf_psc_exp_neuron_nestml_model;
 
   // State variables

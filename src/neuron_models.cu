@@ -33,6 +33,7 @@
 #include "neuron_models.h"
 #include "nestgpu.h"
 #include "iaf_psc_exp.h"
+#include "iaf_psc_exp_neuron_nestml.h"
 #include "iaf_psc_exp_hc.h"
 #include "iaf_psc_exp_g.h"
 #include "ext_neuron.h"
@@ -81,6 +82,12 @@ NodeSeq NESTGPU::Create(std::string model_name, int n_node /*=1*/,
     n_port = 2;
     iaf_psc_exp *iaf_psc_exp_group = new iaf_psc_exp;
     node_vect_.push_back(iaf_psc_exp_group);
+  }
+  else if (model_name == neuron_model_name[i_iaf_psc_exp_neuron_nestml_model]) {
+  n_port = 2;
+  iaf_psc_exp_neuron_nestml *iaf_psc_exp_neuron_nestml_group =
+    new iaf_psc_exp_neuron_nestml;
+  node_vect_.push_back(iaf_psc_exp_neuron_nestml_group);
   }
   else if (model_name == neuron_model_name[i_ext_neuron_model]) {
     ext_neuron *ext_neuron_group = new ext_neuron;

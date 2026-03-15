@@ -129,8 +129,8 @@ set ( nestgpu_sources
 	random.cu
 	rev_spike.cu
 	rk5.cu
-	odeint_thrust_solver.cu # old now  
-	iaf_psc_exp_odeint_solver.cu # NEW
+	iaf_psc_exp_neuron_nestml.h
+	iaf_psc_exp_neuron_nestml.cu
 	scan.cu
 	send_spike.cu
 	spike_buffer.cu
