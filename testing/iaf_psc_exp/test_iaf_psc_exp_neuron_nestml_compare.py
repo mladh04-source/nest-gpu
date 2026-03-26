@@ -39,7 +39,7 @@ ngpu.SetStatus(neuron, {
 spike = ngpu.Create("spike_generator")
 
 # Example spike times in ms
-spike_times = [10.0, 50.0] # changed from [10.0, 400.0]
+spike_times = [10.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 400.0]
 n_spikes = len(spike_times)
 
 # Set spike times

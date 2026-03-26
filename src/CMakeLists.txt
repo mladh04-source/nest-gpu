@@ -28,6 +28,10 @@ set ( nestgpu_sources
 	aeif_cond_beta_multisynapse_kernel.h
 	aeif_cond_beta_multisynapse_rk5.h
 	aeif_psc_alpha.h
+	aeif_cond_alpha_alt_neuron_nestml.cu # new
+	aeif_cond_alpha_alt_neuron_nestml.h #new
+	aeif_cond_alpha_alt_odeint_solver.h # new 
+        aeif_cond_alpha_alt_odeint_solver.cu # new
 	aeif_psc_alpha_kernel.h
 	aeif_psc_alpha_multisynapse.h
 	aeif_psc_alpha_multisynapse_kernel.h
