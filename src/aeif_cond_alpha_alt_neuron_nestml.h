@@ -24,16 +24,24 @@
 
 #include <iostream>
 #include <string>
+
 #include "cuda_error.h"
+#include "rk5.h"
 #include "node_group.h"
 #include "base_neuron.h"
 #include "neuron_models.h"
 
-/*
- * New:
- * Experimental solver wrapper using Boost.odeint + Thrust.
- */
+// ================= EXPERIMENT SWITCH =================
+// 0 -> original RK5 solver (unchanged)
+// 1 -> numeric solver using odeint-style + Thrust (experimental)
+#ifndef USE_ODEINT_THRUST
+#define USE_ODEINT_THRUST 0
+#endif
+// =====================================================
+
+#if USE_ODEINT_THRUST
 #include "aeif_cond_alpha_alt_odeint_solver.h"
+#endif
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
@@ -41,6 +49,7 @@ extern __constant__ float NESTGPUTimeResolution;
 
 namespace aeif_cond_alpha_alt_neuron_nestml_ns
 {
+
 enum ScalVarIndexes {
   i_V_m,
   i_w,
@@ -127,7 +136,7 @@ const std::string aeif_cond_alpha_alt_neuron_nestml_group_param_name[N_GROUP_PAR
   "h0_rel"
 };
 
-}; // namespace
+} // namespace
 
 struct aeif_cond_alpha_alt_neuron_nestml_rk5
 {
@@ -154,38 +163,46 @@ void NodeCalibrate(int n_var, int n_param, double x, float *y,
 
 class aeif_cond_alpha_alt_neuron_nestml : public BaseNeuron
 {
- public:
-  /*
-   * New:
-   * replace handwritten RK5 backend by odeint+thrust solver backend
-   */
-  AeifCondAlphaAltOdeintSolver<N_SCAL_VAR + N_PORT_VAR, N_SCAL_PARAM>* odeint_solver_;
+public:
+  ~aeif_cond_alpha_alt_neuron_nestml();
+
+  // Original storage/solver object kept to stay close to the generated code.
+  // In numeric mode, we still reuse rk5_ device arrays for var_arr_/param_arr_,
+  // but we do NOT call rk5_.Update(...).
+  RungeKutta5<aeif_cond_alpha_alt_neuron_nestml_rk5> rk5_;
+
+#if USE_ODEINT_THRUST
+  // Host-driven numeric solver, operating directly on NEST GPU arrays.
+  AeifCondAlphaAltOdeintSolver* odeint_solver_ = nullptr;
+#endif
 
   float h_min_;
   float h_;
   aeif_cond_alpha_alt_neuron_nestml_rk5 rk5_data_struct_;
 
-  /*
-   * Keep signature compatible with current BaseNeuron API.
-   */
   int Init(int i_node_0, int n_neuron, int n_port, int i_group,
            unsigned long long* seed = nullptr);
 
-  int Calibrate(double, float time_resolution);
+  int Calibrate(double time_min, float time_resolution);
 
   int Update(long long it, double t1);
 
-  /*
-   * new:
-   * Keep getters so that surrounding code changes as little as possible.
-   * These are now forwarded to the odeint solver wrapper.
-   */
   int GetX(int i_neuron, int n_node, double *x) {
-    return odeint_solver_->GetX(i_neuron, n_node, x);
+#if USE_ODEINT_THRUST
+    // x-array is not advanced by the experimental host-driven solver.
+    // Returning RK5 x would be misleading in numeric mode.
+    (void)i_neuron;
+    (void)n_node;
+    (void)x;
+    return -1;
+#else
+    return rk5_.GetX(i_neuron, n_node, x);
+#endif
   }
 
   int GetY(int i_var, int i_neuron, int n_node, float *y) {
-    return odeint_solver_->GetY(i_var, i_neuron, n_node, y);
+    // Safe in both modes because numeric solver reuses rk5_ Y-array storage.
+    return rk5_.GetY(i_var, i_neuron, n_node, y);
   }
 
   template<int N_PORT>

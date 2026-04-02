@@ -4,75 +4,97 @@ import nestgpu as ngpu
 import matplotlib.pyplot as plt
 
 
-# Configuration
-tolerance = 1e-4
+# configuration from environment
 
-# Which model to simulate
 model_name = os.environ.get("MODEL_NAME", "aeif_cond_alpha")
-
-# Output file for recorded membrane potential
 outfile = os.environ.get("OUTFILE", "output_vm.txt")
-
-# Optional reference file for RMSE comparison
+plot_file = os.environ.get("PLOT_FILE", "plot.png")
 reference_file = os.environ.get("REFERENCE_FILE", "")
-
-# Plot output
-plot_file = os.environ.get("PLOT_FILE", "aeif_cond_alpha_plot.png")
+tolerance = float(os.environ.get("TOLERANCE", "1e-4"))
 
 
-# Setup NEST GPU
+# setup
+
 ngpu.SetTimeResolution(0.1)
 ngpu.SetRandomSeed(123)
 
-# Create neuron
-neuron = ngpu.Create(model_name, 1)
-i0 = int(neuron[0])
-
-# Print available names for debugging
-scal_vars = ngpu.GetScalVarNames(i0)
-int_vars = ngpu.GetIntVarNames(i0)
-params = ngpu.GetScalParamNames(i0)
-
 print("MODEL_NAME =", model_name)
-print("ScalVars =", scal_vars)
-print("IntVars  =", int_vars)
-print("Params   =", params)
+
+# create neuron
+neuron = ngpu.Create(model_name, 1)
+
+# show available names for debugging
+try:
+    print("ScalVars =", ngpu.GetScalVarNames(int(neuron[0])))
+except Exception as e:
+    print("Could not read scalar vars:", e)
+
+try:
+    print("IntVars  =", ngpu.GetIntVarNames(int(neuron[0])))
+except Exception as e:
+    print("Could not read int vars:", e)
+
+try:
+    print("Params   =", ngpu.GetScalParamNames(int(neuron[0])))
+except Exception as e:
+    print("Could not read scalar params:", e)
 
 
-# Set physical parameters for the model
-common_params = {
-    "C_m": 281.0,
-    "refr_T": 2.0,
-    "V_reset": -60.0,
-    "g_L": 30.0,
+# set parameters
+# only set parameters that exist in the target model
+
+candidate_params = {
+    "I_e": 200.0,
     "E_L": -70.6,
+    "V_reset": -60.0,
+    "V_th": -50.4,
+    "V_peak": 0.0,
+    "C_m": 281.0,
+    "g_L": 30.0,
     "a": 4.0,
     "b": 80.5,
     "Delta_T": 2.0,
     "tau_w": 144.0,
-    "V_th": -50.4,
-    "V_peak": 0.0,
-    "E_exc": 0.0,
     "tau_syn_exc": 0.2,
-    "E_inh": -85.0,
     "tau_syn_inh": 2.0,
-    "I_e": 200.0
+    "E_exc": 0.0,
+    "E_inh": -85.0,
+    "refr_T": 2.0,
+    "I_stim": 0.0,
 }
 
-# Only set parameters that the current model actually supports
-filtered_params = {k: v for k, v in common_params.items() if k in params}
+available_params = []
+try:
+    available_params = ngpu.GetScalParamNames(int(neuron[0]))
+except Exception:
+    available_params = []
 
-print("Setting parameters:", filtered_params)
-ngpu.SetStatus(neuron, filtered_params)
+filtered_params = {k: v for k, v in candidate_params.items() if k in available_params}
+
+print("Setting params:", filtered_params)
+if filtered_params:
+    ngpu.SetStatus(neuron, filtered_params)
+
+# read back params if possible
+for k in filtered_params:
+    try:
+        val = ngpu.GetNeuronStatus(int(neuron[0]), k)
+        print(f"PARAM {k} = {val}")
+    except Exception:
+        pass
 
 
-# Spike generator input
+# spike generator input
 spike = ngpu.Create("spike_generator")
 
 spike_times = [10.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 400.0]
 n_spikes = len(spike_times)
 
-ngpu.SetStatus(spike, {"spike_times": spike_times})
+try:
+    ngpu.SetStatus(spike, {"spike_times": spike_times})
+except Exception as e:
+    print("Could not set spike_times:", e)
+    raise
 
 conn_spec = {"rule": "all_to_all"}
 syn_spec_ex = {
@@ -84,79 +106,94 @@ syn_spec_ex = {
 ngpu.Connect(spike, neuron, conn_spec, syn_spec_ex)
 
 
-# Choose membrane potential variable automatically
-if "V_m" in scal_vars:
-    vm_name = "V_m"
-elif "V_m_rel" in scal_vars:
-    vm_name = "V_m_rel"
-else:
-    raise RuntimeError("Neither 'V_m' nor 'V_m_rel' found in scalar variables")
+# choose recordable variable automatically
+record_var = None
+try:
+    scal_vars = ngpu.GetScalVarNames(int(neuron[0]))
+    print("Available record vars:", scal_vars)
 
-print("Recording variable:", vm_name)
+    if "V_m" in scal_vars:
+        record_var = "V_m"
+    elif "V_m_rel" in scal_vars:
+        record_var = "V_m_rel"
+    else:
+        raise RuntimeError("Neither V_m nor V_m_rel available.")
+except Exception as e:
+    print("Could not determine recording variable:", e)
+    raise
+
+print("Recording variable:", record_var)
+
+record = ngpu.CreateRecord("", [record_var], [neuron[0]], [0])
 
 
-# Record membrane potential
-record = ngpu.CreateRecord("", [vm_name], [neuron[0]], [0])
-
-# Simulate
+# simulate
 sim_time = 500.0
 ngpu.Simulate(sim_time)
 
 
-# Read recorded data
+# read recorded data
 data = ngpu.GetRecordData(record)
 t = [row[0] for row in data]
 V_m = [row[1] for row in data]
 
 np.savetxt(outfile, np.column_stack((t, V_m)))
 print("Saved:", outfile)
-print("OUTFILE env =", os.environ.get("OUTFILE"))
 print("Recorded points:", len(t))
 print("Configured spike count:", n_spikes)
 
 
-# Optional reference comparison
+# optional spike count diagnostics
+try:
+    int_vars = ngpu.GetIntVarNames(int(neuron[0]))
+    print("IntVars =", int_vars)
+    if "spike_count" in int_vars:
+        spike_count = ngpu.GetNeuronStatus(int(neuron[0]), "spike_count")
+        print("Spike count =", spike_count)
+except Exception as e:
+    print("Could not read spike count:", e)
+
+
+# optional reference comparison
 have_reference = False
-t1 = []
-V_m1 = []
+t_ref = []
+V_ref = []
 
 if reference_file and os.path.exists(reference_file):
     ref_data = np.loadtxt(reference_file)
-    t1 = [x[0] for x in ref_data]
-    V_m1 = [x[1] for x in ref_data]
+    t_ref = ref_data[:, 0]
+    V_ref = ref_data[:, 1]
     have_reference = True
     print("Loaded reference file:", reference_file)
-    print("Reference points:", len(t1))
+    print("Reference points:", len(t_ref))
 else:
     if reference_file:
         print("WARNING: reference file not found:", reference_file)
     else:
         print("No reference file specified. RMSE comparison skipped.")
 
-
-# RMSE calculation
 if have_reference:
-    n = min(len(V_m), len(V_m1))
-    dV = [V_m[i] - V_m1[i] for i in range(n)]
-
-    if len(dV) == 0:
-        print("WARNING: dV is empty, RMSE could not be computed.")
+    n = min(len(V_m), len(V_ref))
+    if n == 0:
+        print("WARNING: empty comparison.")
     else:
-        rmse = np.sqrt(np.mean((np.array(V_m[:n]) - np.array(V_m1[:n])) ** 2))
-        print("rmse :", rmse, " tolerance: ", tolerance)
+        rmse = np.sqrt(np.mean((np.array(V_m[:n]) - np.array(V_ref[:n])) ** 2))
+        max_abs = np.max(np.abs(np.array(V_m[:n]) - np.array(V_ref[:n])))
+        print("RMSE =", rmse, " tolerance =", tolerance)
+        print("MAX_ABS =", max_abs)
 
 
-# Plot
-fig1 = plt.figure(1)
+# plot
+plt.figure(figsize=(10, 6))
 plt.plot(t, V_m, "r-", label=model_name)
 
 if have_reference:
-    plt.plot(t1, V_m1, "b--", label="Reference")
+    plt.plot(t_ref[:len(V_ref)], V_ref, "b--", label="reference")
 
 plt.xlabel("time [ms]")
-plt.ylabel(vm_name)
+plt.ylabel(record_var)
 plt.legend()
-plt.draw()
+plt.tight_layout()
 plt.savefig(plot_file)
 plt.close()
 

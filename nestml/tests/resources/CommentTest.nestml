@@ -1,0 +1,69 @@
+# CommentTest.nestml
+# ##################
+# 
+# 
+# Description
+# +++++++++++
+# 
+# This model is used to test whether comments are detected and processed as such. Moreover, it tests
+# if all comments are attached to their respective elements.
+# 
+# 
+# Copyright statement
+# +++++++++++++++++++
+# 
+# This file is part of NEST.
+# 
+# Copyright (C) 2004 The NEST Initiative
+# 
+# NEST is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+# 
+# NEST is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with NEST.  If not, see <http://www.gnu.org/licenses/>.
+#
+model commentTest:  #model in comment ok
+
+    #state pre comment ok
+    state:  #state in comment ok
+        #pre comment not ok
+
+        #pre comment 1 ok
+        #pre comment 2 ok
+        test real = -50 #inline comment ok
+
+    #equations comment ok
+    equations:
+        test' = -test/tau  # ODE for test
+
+    #parameters comment ok
+    parameters:
+       tau ms = 5 ms
+
+    #internals comment ok
+    internals:
+        intr integer = 1
+
+    #input comment ok
+    input:
+        NMDA <- spike
+
+    #output comment ok
+    output:
+        spike
+
+    #update comment ok
+    update:
+        #statement comment ok
+        test2 boolean = True
+
+        #block comment ok
+        if test2 == True:
+            test = test + 1

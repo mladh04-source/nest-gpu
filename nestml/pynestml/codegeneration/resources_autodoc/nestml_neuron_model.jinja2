@@ -1,0 +1,56 @@
+{{ neuronName }}
+{% for i in range(neuronName | length) %}#{%- endfor %}
+
+{{ neuron.print_comment() | trim | replace('"""', '') | replace('#', '') }}
+
+
+Parameters
+++++++++++
+
+{%- for block in neuron.get_parameters_blocks() %}
+{{ block.print_comment() }}
+{%- include "block_decl_table.jinja2" %}
+{%- endfor %}
+
+
+
+State variables
++++++++++++++++
+
+{% for block in neuron.get_state_blocks() %}
+{%- include "block_decl_table.jinja2" %}
+{% endfor %}
+
+
+
+Equations
++++++++++
+
+{%  for block in neuron.get_equations_blocks() %}
+{%-     for eq in block.get_ode_equations() %}
+
+.. math::
+{%-         if eq.get_lhs().differential_order == 1 %}
+   \frac{ d{{ printer.print(eq.get_lhs()) | replace("'", "") }} } { dt }
+{%-         elif eq.get_lhs().differential_order > 1 %}
+   \frac{ d^{{ eq.get_lhs().differential_order }} {{ printer.print(eq.get_lhs()) | replace("'", "") }} } { dt^{{ eq.get_lhs().differential_order }} }
+{%-         else %} {# differential_order == 0 #}
+   {{ eq.get_lhs().get_name() }}
+{%-         endif -%}
+   = {{ printer.print(eq.get_rhs()) }}
+{%-     endfor %}
+{%- endfor %}
+
+
+
+Source code
++++++++++++
+
+The model source code can be found in the NESTML models repository here: `{{neuronName}} <https://github.com/nest/nestml/tree/master/models/neurons/{{neuron.get_artifact_name()}}>`_.
+
+.. include:: {{neuronName}}_characterisation.rst
+
+
+.. footer::
+
+   Generated at {{ now }}

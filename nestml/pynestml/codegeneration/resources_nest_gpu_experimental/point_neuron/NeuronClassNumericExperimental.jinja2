@@ -1,0 +1,110 @@
+{#-
+NeuronClassNumeric.jinja2
+
+This file is part of NEST.
+
+Copyright (C) 2004 The NEST Initiative
+
+NEST is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 2 of the License, or
+(at your option) any later version.
+
+NEST is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with NEST.  If not, see <http://www.gnu.org/licenses/>.
+#}
+/*
+ *  {{ neuronName }}.cu
+ *
+ *  This file is part of NEST GPU.
+ *
+ *  Copyright (C) 2021 The NEST Initiative
+ *
+ *  NEST GPU is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  NEST GPU is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+#include <config.h>
+#include <cmath>
+#include <iostream>
+#include "{{ neuronName }}.h"
+
+using namespace {{ neuronName }}_ns;
+
+{{ neuronName }}::~{{ neuronName }}()
+{
+  Free();
+}
+
+int {{ neuronName }}::Init(int i_node_0, int n_node, int,
+                          int i_group, unsigned long long* seed)
+{
+  BaseNeuron::Init(i_node_0, n_node,
+                   {{neuron.get_spike_input_ports() | length}},
+                   i_group, seed);
+
+  node_type_ = i_{{ neuronName }}_model;
+
+  n_scal_var_ = N_SCAL_VAR;
+  n_port_var_ = N_PORT_VAR;
+  n_var_ = n_scal_var_ + n_port_var_;
+
+  n_scal_param_ = N_SCAL_PARAM;
+  n_param_ = n_scal_param_;
+
+  n_group_param_ = N_GROUP_PARAM;
+  group_param_ = new float[N_GROUP_PARAM];
+
+  rk5_data_struct_.i_node_0_ = i_node_0_;
+
+  SetGroupParam("h_min_rel", 1e-3);
+  SetGroupParam("h0_rel", 1e-2);
+
+  h_ = group_param_[i_h0_rel] * 0.1;
+
+  rk5_.Init(n_node, n_var_, n_param_, 0.0, h_, rk5_data_struct_);
+
+  var_arr_ = rk5_.GetYArr();
+  param_arr_ = rk5_.GetParamArr();
+
+  return 0;
+}
+
+int {{ neuronName }}::Free()
+{
+  FreeVarArr();
+  FreeParamArr();
+  return 0;
+}
+
+int {{ neuronName }}::Calibrate(double time_min, float time_resolution)
+{
+  h_min_ = group_param_[i_h_min_rel] * time_resolution;
+  h_     = group_param_[i_h0_rel]    * time_resolution;
+
+  rk5_.Calibrate(time_min, h_, rk5_data_struct_);
+  return 0;
+}
+
+int {{ neuronName }}::Update(long long it, double t1)
+{
+  rk5_.Update<N_SCAL_VAR + N_PORT_VAR, N_SCAL_PARAM>(
+      t1, h_min_, rk5_data_struct_);
+  return 0;
+}
+
