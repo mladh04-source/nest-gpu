@@ -1,5 +1,10 @@
+{#-
+aeif_cond_alpha_alt_neuron_nestml.h.jinja2
+ODEINT-only header template for aeif_cond_alpha_alt_neuron_nestml
+#}
+
 /*
- *  {{ neuronName }}.h
+ *  aeif_cond_alpha_alt_neuron_nestml.h
  *
  *  This file is part of NEST GPU.
  *
@@ -20,8 +25,8 @@
  *
  */
 
-#ifndef {{ neuronName.upper() }}_H
-#define {{ neuronName.upper() }}_H
+#ifndef AEIF_COND_ALPHA_ALT_NEURON_NESTML_H
+#define AEIF_COND_ALPHA_ALT_NEURON_NESTML_H
 
 #include <iostream>
 #include <string>
@@ -36,19 +41,90 @@
 
 extern __constant__ float NESTGPUTimeResolution;
 
-namespace {{ neuronName }}_ns
+namespace aeif_cond_alpha_alt_neuron_nestml_ns
 {
 
-{%- include "directives/MemberNamesAndIndexes.jinja2" %}
+enum ScalVarIndexes {
+  i_V_m,
+  i_w,
+  i_refr_t,
+  i_g_exc,
+  i_g_exc__d,
+  i_g_inh,
+  i_g_inh__d,
+  N_SCAL_VAR
+};
 
-} // namespace {{ neuronName }}_ns
+enum ScalParamIndexes {
+  i_C_m,
+  i_refr_T,
+  i_V_reset,
+  i_g_L,
+  i_E_L,
+  i_a,
+  i_b,
+  i_Delta_T,
+  i_tau_w,
+  i_V_th,
+  i_V_peak,
+  i_tau_syn_exc,
+  i_tau_syn_inh,
+  i_E_exc,
+  i_E_inh,
+  i_I_e,
+  i_I_stim,
+  N_SCAL_PARAM
+};
 
-class {{ neuronName }} : public BaseNeuron
+enum PortVarIndexes {
+  i_exc_spikes,
+  i_inh_spikes,
+  N_PORT_VAR
+};
+
+const std::string aeif_cond_alpha_alt_neuron_nestml_scal_var_name[N_SCAL_VAR] = {
+  "V_m",
+  "w",
+  "refr_t",
+  "g_exc",
+  "g_exc__d",
+  "g_inh",
+  "g_inh__d",
+};
+
+const std::string aeif_cond_alpha_alt_neuron_nestml_scal_param_name[N_SCAL_PARAM] = {
+  "C_m",
+  "refr_T",
+  "V_reset",
+  "g_L",
+  "E_L",
+  "a",
+  "b",
+  "Delta_T",
+  "tau_w",
+  "V_th",
+  "V_peak",
+  "tau_syn_exc",
+  "tau_syn_inh",
+  "E_exc",
+  "E_inh",
+  "I_e",
+  "I_stim",
+};
+
+const std::string aeif_cond_alpha_alt_neuron_nestml_port_var_name[N_PORT_VAR] = {
+  "exc_spikes",
+  "inh_spikes",
+};
+
+} // namespace aeif_cond_alpha_alt_neuron_nestml_ns
+
+
+class aeif_cond_alpha_alt_neuron_nestml : public BaseNeuron
 {
 public:
-  ~{{ neuronName }}();
+  ~aeif_cond_alpha_alt_neuron_nestml();
 
-  // Host-driven numeric solver operating on NEST GPU device arrays.
   AeifCondAlphaAltOdeintSolver* odeint_solver_ = nullptr;
 
   int Init(int i_node_0, int n_neuron, int n_port, int i_group,
@@ -61,4 +137,4 @@ public:
   int Free();
 };
 
-#endif // {{ neuronName.upper() }}_H
+#endif // AEIF_COND_ALPHA_ALT_NEURON_NESTML_H

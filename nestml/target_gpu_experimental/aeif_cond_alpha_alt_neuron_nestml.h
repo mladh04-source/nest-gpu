@@ -1,3 +1,5 @@
+
+
 /*
  *  aeif_cond_alpha_alt_neuron_nestml.h
  *
@@ -38,6 +40,7 @@ extern __constant__ float NESTGPUTimeResolution;
 
 namespace aeif_cond_alpha_alt_neuron_nestml_ns
 {
+
 enum ScalVarIndexes {
   i_V_m,
   i_w,
@@ -66,7 +69,6 @@ enum ScalParamIndexes {
   i_E_exc,
   i_E_inh,
   i_I_e,
-  i___h,
   i_I_stim,
   N_SCAL_PARAM
 };
@@ -104,7 +106,6 @@ const std::string aeif_cond_alpha_alt_neuron_nestml_scal_param_name[N_SCAL_PARAM
   "E_exc",
   "E_inh",
   "I_e",
-  "__h",
   "I_stim",
 };
 
@@ -115,12 +116,12 @@ const std::string aeif_cond_alpha_alt_neuron_nestml_port_var_name[N_PORT_VAR] = 
 
 } // namespace aeif_cond_alpha_alt_neuron_nestml_ns
 
+
 class aeif_cond_alpha_alt_neuron_nestml : public BaseNeuron
 {
 public:
   ~aeif_cond_alpha_alt_neuron_nestml();
 
-  // Host-driven numeric solver operating on NEST GPU device arrays.
   AeifCondAlphaAltOdeintSolver* odeint_solver_ = nullptr;
 
   int Init(int i_node_0, int n_neuron, int n_port, int i_group,

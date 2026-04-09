@@ -135,7 +135,7 @@ __device__
     dydx[i_g_inh__d] =(-y[i_g_inh]) / pow(param[i_tau_syn_inh], 2) - 2 * y[i_g_inh__d] / param[i_tau_syn_inh];
       
     dydx[i_V_m] =0;
-    dydx[i_w] =param[i_a] * ((-param[i_E_L]) / param[i_tau_w] + min(y[i_V_m], param[i_V_peak]) / param[i_tau_w]) - y[i_w] / param[i_tau_w];
+    dydx[i_w] =(-param[i_E_L]) * param[i_a] / param[i_tau_w] + param[i_a] * min(y[i_V_m], param[i_V_peak]) / param[i_tau_w] - y[i_w] / param[i_tau_w];
       
     dydx[i_refr_t] =(-1.0);
       
@@ -157,9 +157,9 @@ __device__
       
     dydx[i_g_inh__d] =(-y[i_g_inh]) / pow(param[i_tau_syn_inh], 2) - 2 * y[i_g_inh__d] / param[i_tau_syn_inh];
       
-    dydx[i_V_m] =param[i_g_L] * (param[i_E_L] / param[i_C_m] - min(y[i_V_m], param[i_V_peak]) / param[i_C_m]) + param[i_Delta_T] * param[i_g_L] * exp(((-param[i_V_th]) + min(y[i_V_m], param[i_V_peak])) / param[i_Delta_T]) / param[i_C_m] + param[i_E_exc] * y[i_g_exc] / param[i_C_m] + param[i_E_inh] * y[i_g_inh] / param[i_C_m] + param[i_I_e] / param[i_C_m] + param[i_I_stim] / param[i_C_m] + ((-y[i_g_exc]) * min(y[i_V_m], param[i_V_peak]) - y[i_g_inh] * min(y[i_V_m], param[i_V_peak]) - y[i_w]) / param[i_C_m];
+    dydx[i_V_m] =param[i_Delta_T] * param[i_g_L] * exp(((-param[i_V_th]) + min(y[i_V_m], param[i_V_peak])) / param[i_Delta_T]) / param[i_C_m] + param[i_E_L] * param[i_g_L] / param[i_C_m] + param[i_E_exc] * y[i_g_exc] / param[i_C_m] + param[i_I_e] / param[i_C_m] - param[i_g_L] * min(y[i_V_m], param[i_V_peak]) / param[i_C_m] + (param[i_E_inh] * y[i_g_inh] + param[i_I_stim] - y[i_g_exc] * min(y[i_V_m], param[i_V_peak]) - y[i_g_inh] * min(y[i_V_m], param[i_V_peak]) - y[i_w]) / param[i_C_m];
       
-    dydx[i_w] =param[i_a] * ((-param[i_E_L]) / param[i_tau_w] + min(y[i_V_m], param[i_V_peak]) / param[i_tau_w]) - y[i_w] / param[i_tau_w];
+    dydx[i_w] =(-param[i_E_L]) * param[i_a] / param[i_tau_w] + param[i_a] * min(y[i_V_m], param[i_V_peak]) / param[i_tau_w] - y[i_w] / param[i_tau_w];
       
     dydx[i_refr_t] =0;
 

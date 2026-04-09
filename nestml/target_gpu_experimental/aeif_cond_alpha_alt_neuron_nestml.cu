@@ -1,3 +1,5 @@
+
+
 /*
  *  aeif_cond_alpha_alt_neuron_nestml.cu
  *
@@ -30,9 +32,13 @@
 using namespace aeif_cond_alpha_alt_neuron_nestml_ns;
 
 /*
- 
  * POST-INTEGRATION KERNEL
- * Handles: onReceive and onCondition
+ *
+ * Handles:
+ * onReceive: apply buffered spikes to conductance derivatives
+ *  onCondition: threshold check, reset, adaptation jump, spike emission
+ *
+ * ODE integration itself is handled by AeifCondAlphaAltOdeintSolver.
  */
 __global__ void aeif_cond_alpha_alt_neuron_nestml_PostUpdate(
     int n_node,
@@ -49,23 +55,26 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_PostUpdate(
   float* var   = var_arr   + n_var   * i_neuron;
   float* param = param_arr + n_param * i_neuron;
 
-  // onReceive: excitatory spikes
+ 
+  // onReceive (spike input ports)
+
   if (var[N_SCAL_VAR + i_exc_spikes] != 0.0f)
   {
     var[i_g_exc__d] += (0.001f * var[N_SCAL_VAR + i_exc_spikes])
-                       * (M_E / param[i_tau_syn_exc]) * 1000.0f;
+                       * (M_E / param[i_tau_syn_exc]) * 1.0f * 1000.0f;
     var[N_SCAL_VAR + i_exc_spikes] = 0.0f;
   }
 
-  // onReceive: inhibitory spikes
   if (var[N_SCAL_VAR + i_inh_spikes] != 0.0f)
   {
     var[i_g_inh__d] += (0.001f * var[N_SCAL_VAR + i_inh_spikes])
-                       * (M_E / param[i_tau_syn_inh]) * 1000.0f;
+                       * (M_E / param[i_tau_syn_inh]) * 1.0f * 1000.0f;
     var[N_SCAL_VAR + i_inh_spikes] = 0.0f;
   }
 
-  // onCondition: threshold / reset / spike
+
+  // onCondition (threshold / spike / reset)
+
   if (var[i_refr_t] <= 0.0f && var[i_V_m] >= param[i_V_peak])
   {
     var[i_refr_t] = param[i_refr_T];
@@ -74,10 +83,14 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_PostUpdate(
     PushSpike(i_node_0 + i_neuron, 1.0f);
   }
 
-  // reset input ports
+  // Reset input ports
   var[N_SCAL_VAR + i_exc_spikes] = 0.0f;
   var[N_SCAL_VAR + i_inh_spikes] = 0.0f;
 }
+
+
+
+// Class methods
 
 aeif_cond_alpha_alt_neuron_nestml::~aeif_cond_alpha_alt_neuron_nestml()
 {
@@ -85,12 +98,9 @@ aeif_cond_alpha_alt_neuron_nestml::~aeif_cond_alpha_alt_neuron_nestml()
 }
 
 int aeif_cond_alpha_alt_neuron_nestml::Init(int i_node_0, int n_node, int /*n_port*/,
-                           int i_group, unsigned long long* seed)
+                                            int i_group, unsigned long long* seed)
 {
-  BaseNeuron::Init(i_node_0, n_node,
-                   2,
-                   i_group, seed);
-
+  BaseNeuron::Init(i_node_0, n_node, 2 /*n_port*/, i_group, seed);
   node_type_ = i_aeif_cond_alpha_alt_neuron_nestml_model;
 
   // State variables
@@ -109,67 +119,47 @@ int aeif_cond_alpha_alt_neuron_nestml::Init(int i_node_0, int n_node, int /*n_po
   scal_param_name_ = aeif_cond_alpha_alt_neuron_nestml_scal_param_name;
   port_var_name_   = aeif_cond_alpha_alt_neuron_nestml_port_var_name;
 
-  // Parameters
-  SetScalParam(0, n_node, "C_m",
-               281.0);
-  SetScalParam(0, n_node, "refr_T",
-               2);
-  SetScalParam(0, n_node, "V_reset",
-               (-60.0));
-  SetScalParam(0, n_node, "g_L",
-               30.0);
-  SetScalParam(0, n_node, "E_L",
-               (-70.6));
-  SetScalParam(0, n_node, "a",
-               4);
-  SetScalParam(0, n_node, "b",
-               80.5);
-  SetScalParam(0, n_node, "Delta_T",
-               2.0);
-  SetScalParam(0, n_node, "tau_w",
-               144.0);
-  SetScalParam(0, n_node, "V_th",
-               (-50.4));
-  SetScalParam(0, n_node, "V_peak",
-               0);
-  SetScalParam(0, n_node, "tau_syn_exc",
-               0.2);
-  SetScalParam(0, n_node, "tau_syn_inh",
-               2.0);
-  SetScalParam(0, n_node, "E_exc",
-               0);
-  SetScalParam(0, n_node, "E_inh",
-               (-85.0));
-  SetScalParam(0, n_node, "I_e",
-               0);
 
-  // Internal variables
-  SetScalParam(0, n_node, "__h", 0.0);
+  // Parameters (defaults)
 
-  // Continuous input ports
-  SetScalParam(0, n_node, "I_stim", 0.0);
+  SetScalParam(0, n_node, "C_m",         281.0);   // pF
+  SetScalParam(0, n_node, "refr_T",      2.0);     // ms
+  SetScalParam(0, n_node, "V_reset",    -60.0);    // mV
+  SetScalParam(0, n_node, "g_L",         30.0);    // nS
+  SetScalParam(0, n_node, "E_L",        -70.6);    // mV
+  SetScalParam(0, n_node, "a",            4.0);    // nS
+  SetScalParam(0, n_node, "b",           80.5);    // pA
+  SetScalParam(0, n_node, "Delta_T",      2.0);    // mV
+  SetScalParam(0, n_node, "tau_w",      144.0);    // ms
+  SetScalParam(0, n_node, "V_th",       -50.4);    // mV
+  SetScalParam(0, n_node, "V_peak",       0.0);    // mV
+  SetScalParam(0, n_node, "tau_syn_exc",  0.2);    // ms
+  SetScalParam(0, n_node, "tau_syn_inh",  2.0);    // ms
+  SetScalParam(0, n_node, "E_exc",        0.0);    // mV
+  SetScalParam(0, n_node, "E_inh",      -85.0);    // mV
+  SetScalParam(0, n_node, "I_e",          0.0);    // pA
+  SetScalParam(0, n_node, "I_stim",       0.0);    // pA
+
 
   // State variables
-  SetScalVar(0, n_node, "V_m",
-             param[i_E_L]);
-  SetScalVar(0, n_node, "w",
-             0);
-  SetScalVar(0, n_node, "refr_t",
-             0);
-  SetScalVar(0, n_node, "g_exc",
-             0);
-  SetScalVar(0, n_node, "g_exc__d",
-             0);
-  SetScalVar(0, n_node, "g_inh",
-             0);
-  SetScalVar(0, n_node, "g_inh__d",
-             0);
+
+  SetScalVar(0, n_node, "V_m",   *GetScalParam(0, n_node, "E_L"));
+  SetScalVar(0, n_node, "w",      0.0);
+  SetScalVar(0, n_node, "refr_t", 0.0);
+  SetScalVar(0, n_node, "g_exc",  0.0);
+  SetScalVar(0, n_node, "g_exc__d", 0.0);
+  SetScalVar(0, n_node, "g_inh",  0.0);
+  SetScalVar(0, n_node, "g_inh__d", 0.0);
+
 
   // Host-driven numeric solver using NEST GPU arrays
+
   odeint_solver_ = new AeifCondAlphaAltOdeintSolver(
       n_node_, var_arr_, n_var_, param_arr_, n_param_);
 
-  // multiplication factor of input signal is always 1 for all nodes
+
+  // Input handling
+
   float input_weight = 1.0f;
   gpuErrchk(cudaMalloc(&port_weight_arr_, sizeof(float)));
   gpuErrchk(cudaMemcpy(port_weight_arr_, &input_weight,
@@ -177,7 +167,6 @@ int aeif_cond_alpha_alt_neuron_nestml::Init(int i_node_0, int n_node, int /*n_po
   port_weight_arr_step_  = 0;
   port_weight_port_step_ = 0;
 
-  // process the input spikes
   port_input_arr_       = GetVarArr() + n_scal_var_ + GetPortVarIdx("exc_spikes");
   port_input_arr_step_  = n_var_;
   port_input_port_step_ = 1;
@@ -187,7 +176,7 @@ int aeif_cond_alpha_alt_neuron_nestml::Init(int i_node_0, int n_node, int /*n_po
 
 int aeif_cond_alpha_alt_neuron_nestml::Calibrate(double /*time_min*/, float /*time_resolution*/)
 {
-  // ODEINT path does not need RK5 / analytic calibration
+  // ODEINT path does not need RK5/analytic calibration.
   return 0;
 }
 

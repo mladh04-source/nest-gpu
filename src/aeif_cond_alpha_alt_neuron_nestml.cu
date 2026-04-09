@@ -27,220 +27,12 @@
 #include "aeif_cond_alpha_alt_neuron_nestml.h"
 #include "spike_buffer.h"
 
-namespace aeif_cond_alpha_alt_neuron_nestml_ns
-{
-
-__device__
-void NodeInit(int n_var, int n_param, double x, float *y, float *param,
-              aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct)
-{
-  // Parameters
-  param[i_C_m] = 281.0;        // as pF
-  param[i_refr_T] = 2;         // as ms
-  param[i_V_reset] = (-60.0);  // as mV
-  param[i_g_L] = 30.0;         // as nS
-  param[i_E_L] = (-70.6);      // as mV
-  param[i_a] = 4;              // as nS
-  param[i_b] = 80.5;           // as pA
-  param[i_Delta_T] = 2.0;      // as mV
-  param[i_tau_w] = 144.0;      // as ms
-  param[i_V_th] = (-50.4);     // as mV
-  param[i_V_peak] = 0;         // as mV
-  param[i_tau_syn_exc] = 0.2;  // as ms
-  param[i_tau_syn_inh] = 2.0;  // as ms
-  param[i_E_exc] = 0;          // as mV
-  param[i_E_inh] = (-85.0);    // as mV
-  param[i_I_e] = 0;            // as pA
-
-  // Internal variables / state variables
-  y[i_V_m] = param[i_E_L]; // as mV
-  y[i_w] = 0;              // as pA
-  y[i_refr_t] = 0;         // as ms
-  y[i_g_exc] = 0;          // as nS
-  y[i_g_exc__d] = 0;       // as nS / ms
-  y[i_g_inh] = 0;          // as nS
-  y[i_g_inh__d] = 0;       // as nS / ms
-
-  // Input port variables
-  y[N_SCAL_VAR + i_exc_spikes] = 0;
-  y[N_SCAL_VAR + i_inh_spikes] = 0;
-}
-
-__device__
-void NodeCalibrate(int n_var, int n_param, double x, float *y,
-                   float *param, aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct)
-{
-  // No extra per-neuron calibration state needed here.
-}
-
-template<int NVAR, int NPARAM>
-__device__
-void Derivatives_g_exc_g_inh_refr_t_w(double x, float *y, float *dydx, float *param,
-                                      aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct)
-{
-  dydx[i_g_exc] = 1.0f * y[i_g_exc__d];
-  dydx[i_g_exc__d] = (-y[i_g_exc]) / pow(param[i_tau_syn_exc], 2)
-                     - 2.0f * y[i_g_exc__d] / param[i_tau_syn_exc];
-
-  dydx[i_g_inh] = 1.0f * y[i_g_inh__d];
-  dydx[i_g_inh__d] = (-y[i_g_inh]) / pow(param[i_tau_syn_inh], 2)
-                     - 2.0f * y[i_g_inh__d] / param[i_tau_syn_inh];
-
-  dydx[i_V_m] = 0.0f;
-  dydx[i_w] =
-      param[i_a] * ((-param[i_E_L]) / param[i_tau_w]
-      + MIN(y[i_V_m], param[i_V_peak]) / param[i_tau_w])
-      - y[i_w] / param[i_tau_w];
-
-  dydx[i_refr_t] = -1.0f;
-
-  // Input port variables should always be set to 0
-  dydx[N_SCAL_VAR + i_exc_spikes] = 0.0f;
-  dydx[N_SCAL_VAR + i_inh_spikes] = 0.0f;
-}
-
-template<int NVAR, int NPARAM>
-__device__
-void Derivatives_V_m_g_exc_g_inh_w(double x, float *y, float *dydx, float *param,
-                                   aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct)
-{
-  dydx[i_g_exc] = 1.0f * y[i_g_exc__d];
-  dydx[i_g_exc__d] = (-y[i_g_exc]) / pow(param[i_tau_syn_exc], 2)
-                     - 2.0f * y[i_g_exc__d] / param[i_tau_syn_exc];
-
-  dydx[i_g_inh] = 1.0f * y[i_g_inh__d];
-  dydx[i_g_inh__d] = (-y[i_g_inh]) / pow(param[i_tau_syn_inh], 2)
-                     - 2.0f * y[i_g_inh__d] / param[i_tau_syn_inh];
-
-  dydx[i_V_m] =
-      ( param[i_Delta_T] * param[i_g_L]
-          * exp(((-param[i_V_th]) + MIN(y[i_V_m], param[i_V_peak])) / param[i_Delta_T])
-        + param[i_E_L]  * param[i_g_L]
-        + param[i_E_exc] * y[i_g_exc]
-        + param[i_E_inh] * y[i_g_inh]
-        + param[i_I_e]
-        + param[i_I_stim]
-        - param[i_g_L] * MIN(y[i_V_m], param[i_V_peak])
-        - y[i_g_exc] * MIN(y[i_V_m], param[i_V_peak])
-        - y[i_g_inh] * MIN(y[i_V_m], param[i_V_peak])
-        - y[i_w] ) / param[i_C_m];
-
-  dydx[i_w] =
-      param[i_a] * ((-param[i_E_L]) / param[i_tau_w]
-      + MIN(y[i_V_m], param[i_V_peak]) / param[i_tau_w])
-      - y[i_w] / param[i_tau_w];
-
-  dydx[i_refr_t] = 0.0f;
-
-  // Input port variables should always be set to 0
-  dydx[N_SCAL_VAR + i_exc_spikes] = 0.0f;
-  dydx[N_SCAL_VAR + i_inh_spikes] = 0.0f;
-}
-
-template<int NVAR, int NPARAM>
-__device__
-void ExternalUpdate(double x, float *y, float *param, bool end_time_step,
-                    aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct)
-{
-  if (y[i_refr_t] > 0)
-  {
-    // start rendered code for integrate_odes(g_exc, g_inh, refr_t, w)
-  }
-  else
-  {
-    // start rendered code for integrate_odes(V_m, g_exc, g_inh, w)
-  }
-
-  /**
-   * Begin NESTML generated code for the onReceive block(s)
-   **/
-  if (y[N_SCAL_VAR + i_exc_spikes] > 0)
-  {
-    y[i_g_exc__d] += (0.001f * y[N_SCAL_VAR + i_exc_spikes])
-                     * (M_E / param[i_tau_syn_exc]) * 1.0f * 1000.0f;
-    y[N_SCAL_VAR + i_exc_spikes] = 0.0f; // reset the value
-  }
-
-  if (y[N_SCAL_VAR + i_inh_spikes] > 0)
-  {
-    y[i_g_inh__d] += (0.001f * y[N_SCAL_VAR + i_inh_spikes])
-                     * (M_E / param[i_tau_syn_inh]) * 1.0f * 1000.0f;
-    y[N_SCAL_VAR + i_inh_spikes] = 0.0f; // reset the value
-  }
-
-  // Begin NESTML generated code for the onCondition block(s)
-
-  if (y[i_refr_t] <= 0 && y[i_V_m] >= param[i_V_peak])
-  {
-    y[i_refr_t] = param[i_refr_T];
-    y[i_V_m] = param[i_V_reset];
-    y[i_w] += param[i_b];
-    int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
-    PushSpike(data_struct.i_node_0_ + i_neuron, 1.0);
-  }
-
-  // Reset the input port variables
-  y[N_SCAL_VAR + i_exc_spikes] = 0.0f;
-  y[N_SCAL_VAR + i_inh_spikes] = 0.0f;
-}
-
-} // namespace aeif_cond_alpha_alt_neuron_nestml_ns
-
-
-// RK5 interface wrappers (kept unchanged for original path and for array init)
-
-__device__
-void NodeInit(int n_var, int n_param, double x, float *y,
-              float *param, aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct)
-{
-  aeif_cond_alpha_alt_neuron_nestml_ns::NodeInit(n_var, n_param, x, y, param, data_struct);
-}
-
-__device__
-void NodeCalibrate(int n_var, int n_param, double x, float *y,
-                   float *param, aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct)
-{
-  aeif_cond_alpha_alt_neuron_nestml_ns::NodeCalibrate(n_var, n_param, x, y, param, data_struct);
-}
-
-int Update(long long it, double t1);
-
-template<int NVAR, int NPARAM>
-__device__
-void ExternalUpdate(double x, float *y, float *param, bool end_time_step,
-                    aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct)
-{
-  aeif_cond_alpha_alt_neuron_nestml_ns::ExternalUpdate<NVAR, NPARAM>(
-      x, y, param, end_time_step, data_struct);
-}
-
 using namespace aeif_cond_alpha_alt_neuron_nestml_ns;
 
-template<int NVAR, int NPARAM>
-__device__
-void Derivatives(double x, float *y, float *dydx, float *param,
-                 aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct)
-{
-  if (y[i_refr_t] > 0)
-  {
-    aeif_cond_alpha_alt_neuron_nestml_ns::Derivatives_g_exc_g_inh_refr_t_w<NVAR, NPARAM>(
-        x, y, dydx, param, data_struct);
-  }
-  else
-  {
-    aeif_cond_alpha_alt_neuron_nestml_ns::Derivatives_V_m_g_exc_g_inh_w<NVAR, NPARAM>(
-        x, y, dydx, param, data_struct);
-  }
-}
-
 /*
- * POST-INTEGRATION KERNEL (needed for numeric solver)
- *
- * Handles:
- * onReceive: apply buffered spikes to conductance derivatives
- * onCondition: threshold check, reset, adaptation jump, spike emission
- *
- * Same event semantics as the original ExternalUpdate().
+ * POST-INTEGRATION KERNEL
+ * Handles: onReceive and onCondition
+ * ODE integration itself is done only by the odeint solver.
  */
 __global__ void aeif_cond_alpha_alt_neuron_nestml_PostUpdate(
     int n_node,
@@ -259,30 +51,28 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_PostUpdate(
 
 
   // onReceive (spike input ports)
-
   if (var[N_SCAL_VAR + i_exc_spikes] != 0.0f)
   {
     var[i_g_exc__d] += (0.001f * var[N_SCAL_VAR + i_exc_spikes])
-                       * (M_E / param[i_tau_syn_exc]) * 1.0f * 1000.0f;
+                       * (M_E / param[i_tau_syn_exc]) * 1000.0f;
     var[N_SCAL_VAR + i_exc_spikes] = 0.0f;
   }
 
   if (var[N_SCAL_VAR + i_inh_spikes] != 0.0f)
   {
     var[i_g_inh__d] += (0.001f * var[N_SCAL_VAR + i_inh_spikes])
-                       * (M_E / param[i_tau_syn_inh]) * 1.0f * 1000.0f;
+                       * (M_E / param[i_tau_syn_inh]) * 1000.0f;
     var[N_SCAL_VAR + i_inh_spikes] = 0.0f;
   }
 
 
-  // onCondition (threshold/spike)
-  
+  // onCondition (threshold / reset / spike)
   if (var[i_refr_t] <= 0.0f && var[i_V_m] >= param[i_V_peak])
   {
     var[i_refr_t] = param[i_refr_T];
     var[i_V_m]    = param[i_V_reset];
     var[i_w]     += param[i_b];
-    PushSpike(i_node_0 + i_neuron, 1.0);
+    PushSpike(i_node_0 + i_neuron, 1.0f);
   }
 
   // Reset input ports
@@ -291,14 +81,12 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_PostUpdate(
 }
 
 
+
 // Class methods
 
 aeif_cond_alpha_alt_neuron_nestml::~aeif_cond_alpha_alt_neuron_nestml()
 {
-#if USE_ODEINT_THRUST
-  delete odeint_solver_;
-  odeint_solver_ = nullptr;
-#endif
+  Free();
 }
 
 int aeif_cond_alpha_alt_neuron_nestml::Init(int i_node_0, int n_node, int /*n_port*/,
@@ -315,34 +103,48 @@ int aeif_cond_alpha_alt_neuron_nestml::Init(int i_node_0, int n_node, int /*n_po
   // Parameters
   n_scal_param_ = N_SCAL_PARAM;
   n_param_      = n_scal_param_;
-  n_group_param_ = N_GROUP_PARAM;
-  group_param_   = new float[N_GROUP_PARAM];
+
+  AllocParamArr();
+  AllocVarArr();
 
   scal_var_name_   = aeif_cond_alpha_alt_neuron_nestml_scal_var_name;
   scal_param_name_ = aeif_cond_alpha_alt_neuron_nestml_scal_param_name;
   port_var_name_   = aeif_cond_alpha_alt_neuron_nestml_port_var_name;
 
-  group_param_name_ = aeif_cond_alpha_alt_neuron_nestml_group_param_name;
-  rk5_data_struct_.i_node_0_ = i_node_0_;
 
-  // Keep original group parameters and storage allocation path
-  SetGroupParam("h_min_rel", 1.0e-3);
-  SetGroupParam("h0_rel",    1.0e-2);
-  h_ = group_param_[i_h0_rel] * 0.1f;
+  // Parameters
+  SetScalParam(0, n_node, "C_m",         281.0);    // pF
+  SetScalParam(0, n_node, "refr_T",      2.0);      // ms
+  SetScalParam(0, n_node, "V_reset",    -60.0);     // mV
+  SetScalParam(0, n_node, "g_L",         30.0);     // nS
+  SetScalParam(0, n_node, "E_L",        -70.6);     // mV
+  SetScalParam(0, n_node, "a",            4.0);     // nS
+  SetScalParam(0, n_node, "b",           80.5);     // pA
+  SetScalParam(0, n_node, "Delta_T",      2.0);     // mV
+  SetScalParam(0, n_node, "tau_w",      144.0);     // ms
+  SetScalParam(0, n_node, "V_th",       -50.4);     // mV
+  SetScalParam(0, n_node, "V_peak",       0.0);     // mV
+  SetScalParam(0, n_node, "tau_syn_exc",  0.2);     // ms
+  SetScalParam(0, n_node, "tau_syn_inh",  2.0);     // ms
+  SetScalParam(0, n_node, "E_exc",        0.0);     // mV
+  SetScalParam(0, n_node, "E_inh",      -85.0);     // mV
+  SetScalParam(0, n_node, "I_e",          0.0);     // pA
+  SetScalParam(0, n_node, "I_stim",       0.0);     // pA
 
-  // IMPORTANT:
-  // We keep rk5_.Init(...) even in numeric mode, because it initializes
-  // param_arr_ and var_arr_ via NodeInit and allocates raw device arrays
-  // that are also reused by the Thrust/odeint solver.
-  rk5_.Init(n_node, n_var_, n_param_, 0.0, h_, rk5_data_struct_);
-  var_arr_   = rk5_.GetYArr();
-  param_arr_ = rk5_.GetParamArr();
 
-#if USE_ODEINT_THRUST
-  // Host-driven numeric solver over the same NEST GPU raw arrays
+  // State variables
+  SetScalVar(0, n_node, "V_m",       *GetScalParam(0, n_node, "E_L"));
+  SetScalVar(0, n_node, "w",         0.0);
+  SetScalVar(0, n_node, "refr_t",    0.0);
+  SetScalVar(0, n_node, "g_exc",     0.0);
+  SetScalVar(0, n_node, "g_exc__d",  0.0);
+  SetScalVar(0, n_node, "g_inh",     0.0);
+  SetScalVar(0, n_node, "g_inh__d",  0.0);
+
+
+  // Host-driven numeric solver
   odeint_solver_ = new AeifCondAlphaAltOdeintSolver(
       n_node_, var_arr_, n_var_, param_arr_, n_param_);
-#endif
 
   // multiplication factor of input signal is always 1 for all nodes
   float input_weight = 1.0f;
@@ -360,40 +162,33 @@ int aeif_cond_alpha_alt_neuron_nestml::Init(int i_node_0, int n_node, int /*n_po
   return 0;
 }
 
-int aeif_cond_alpha_alt_neuron_nestml::Calibrate(double time_min, float time_resolution)
+int aeif_cond_alpha_alt_neuron_nestml::Calibrate(double /*time_min*/, float /*time_resolution*/)
 {
-  h_min_ = group_param_[i_h_min_rel] * time_resolution;
-  h_     = group_param_[i_h0_rel]    * time_resolution;
-
-#if !USE_ODEINT_THRUST
-  // Original RK5 path
-  rk5_.Calibrate(time_min, h_, rk5_data_struct_);
-#else
-  // Numeric solver does not need RK5 calibration coefficients,
-  // but we keep the stored h-values consistent with time resolution.
-  (void)time_min;
-#endif
-
+  // ODEINT path does not need RK5 calibration
   return 0;
 }
 
-int aeif_cond_alpha_alt_neuron_nestml::Update(long long it, double t1)
+int aeif_cond_alpha_alt_neuron_nestml::Update(long long /*it*/, double t1)
 {
-#if USE_ODEINT_THRUST
-  // Numeric integration (host-driven, device execution via Thrust)
   float dt = 0.0f;
   gpuErrchk(cudaMemcpyFromSymbol(&dt, NESTGPUTimeResolution, sizeof(float)));
+
   const float t0 = static_cast<float>(t1) - dt;
 
   odeint_solver_->Step(t0, dt);
 
-  // Event handling after integration
   aeif_cond_alpha_alt_neuron_nestml_PostUpdate<<<(n_node_ + 1023) / 1024, 1024>>>(
       n_node_, i_node_0_, var_arr_, param_arr_, n_var_, n_param_);
-#else
-  // Original RK5 solver (unchanged)
-  rk5_.Update<N_SCAL_VAR + N_PORT_VAR, N_SCAL_PARAM>(t1, h_min_, rk5_data_struct_);
-#endif
 
+  return 0;
+}
+
+int aeif_cond_alpha_alt_neuron_nestml::Free()
+{
+  delete odeint_solver_;
+  odeint_solver_ = nullptr;
+
+  FreeVarArr();
+  FreeParamArr();
   return 0;
 }

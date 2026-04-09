@@ -2,7 +2,7 @@
  *  aeif_cond_alpha_alt_odeint_solver.h
  *
  *  Experimental numeric solver for aeif_cond_alpha_alt_neuron_nestml
- *  using a host-driven odeint/thrust execution model.
+ *  using a host-driven odeint/thrust-style execution model.
  *
  *  IMPORTANT:
  *  This solver is host-driven.
@@ -17,9 +17,9 @@
 #ifndef AEIF_COND_ALPHA_ALT_ODEINT_SOLVER_H
 #define AEIF_COND_ALPHA_ALT_ODEINT_SOLVER_H
 
-#include <thrust/device_ptr.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/execution_policy.h>
 
 class AeifCondAlphaAltOdeintSolver
 {
@@ -33,11 +33,12 @@ public:
    * param_arr   : pointer to NEST GPU parameter array (device memory)
    * param_stride: distance between consecutive neurons in param_arr (n_param_)
    */
-  AeifCondAlphaAltOdeintSolver(int n_neuron,
-                               float* var_arr,
-                               int var_stride,
-                               float* param_arr,
-                               int param_stride);
+  AeifCondAlphaAltOdeintSolver(
+      int n_neuron,
+      float* var_arr,
+      int var_stride,
+      float* param_arr,
+      int param_stride);
 
   /*
    * Perform one integration step over [t0, t0 + dt].

@@ -1,5 +1,10 @@
+{#-
+aeif_cond_alpha_alt_neuron_nestml.cu.jinja2
+ODEINT-only CUDA template for aeif_cond_alpha_alt_neuron_nestml
+#}
+
 /*
- *  {{ neuronName }}.cu
+ *  aeif_cond_alpha_alt_neuron_nestml.cu
  *
  *  This file is part of NEST GPU.
  *
@@ -24,17 +29,21 @@
 #include <cmath>
 #include <iostream>
 
-#include "{{ neuronName }}.h"
+#include "aeif_cond_alpha_alt_neuron_nestml.h"
 #include "spike_buffer.h"
 
-using namespace {{ neuronName }}_ns;
+using namespace aeif_cond_alpha_alt_neuron_nestml_ns;
 
 /*
- 
  * POST-INTEGRATION KERNEL
- * Handles: onReceive and onCondition
+ *
+ * Handles:
+ * onReceive: apply buffered spikes to conductance derivatives
+ *  onCondition: threshold check, reset, adaptation jump, spike emission
+ *
+ * ODE integration itself is handled by AeifCondAlphaAltOdeintSolver.
  */
-__global__ void {{ neuronName }}_PostUpdate(
+__global__ void aeif_cond_alpha_alt_neuron_nestml_PostUpdate(
     int n_node,
     int i_node_0,
     float* var_arr,
@@ -49,23 +58,26 @@ __global__ void {{ neuronName }}_PostUpdate(
   float* var   = var_arr   + n_var   * i_neuron;
   float* param = param_arr + n_param * i_neuron;
 
-  // onReceive: excitatory spikes
+ 
+  // onReceive (spike input ports)
+
   if (var[N_SCAL_VAR + i_exc_spikes] != 0.0f)
   {
     var[i_g_exc__d] += (0.001f * var[N_SCAL_VAR + i_exc_spikes])
-                       * (M_E / param[i_tau_syn_exc]) * 1000.0f;
+                       * (M_E / param[i_tau_syn_exc]) * 1.0f * 1000.0f;
     var[N_SCAL_VAR + i_exc_spikes] = 0.0f;
   }
 
-  // onReceive: inhibitory spikes
   if (var[N_SCAL_VAR + i_inh_spikes] != 0.0f)
   {
     var[i_g_inh__d] += (0.001f * var[N_SCAL_VAR + i_inh_spikes])
-                       * (M_E / param[i_tau_syn_inh]) * 1000.0f;
+                       * (M_E / param[i_tau_syn_inh]) * 1.0f * 1000.0f;
     var[N_SCAL_VAR + i_inh_spikes] = 0.0f;
   }
 
-  // onCondition: threshold / reset / spike
+
+  // onCondition (threshold / spike / reset)
+
   if (var[i_refr_t] <= 0.0f && var[i_V_m] >= param[i_V_peak])
   {
     var[i_refr_t] = param[i_refr_T];
@@ -74,24 +86,25 @@ __global__ void {{ neuronName }}_PostUpdate(
     PushSpike(i_node_0 + i_neuron, 1.0f);
   }
 
-  // reset input ports
+  // Reset input ports
   var[N_SCAL_VAR + i_exc_spikes] = 0.0f;
   var[N_SCAL_VAR + i_inh_spikes] = 0.0f;
 }
 
-{{ neuronName }}::~{{ neuronName }}()
+
+
+// Class methods
+
+aeif_cond_alpha_alt_neuron_nestml::~aeif_cond_alpha_alt_neuron_nestml()
 {
   Free();
 }
 
-int {{ neuronName }}::Init(int i_node_0, int n_node, int /*n_port*/,
-                           int i_group, unsigned long long* seed)
+int aeif_cond_alpha_alt_neuron_nestml::Init(int i_node_0, int n_node, int /*n_port*/,
+                                            int i_group, unsigned long long* seed)
 {
-  BaseNeuron::Init(i_node_0, n_node,
-                   {{ neuron.get_spike_input_ports() | length }},
-                   i_group, seed);
-
-  node_type_ = i_{{ neuronName }}_model;
+  BaseNeuron::Init(i_node_0, n_node, 2 /*n_port*/, i_group, seed);
+  node_type_ = i_aeif_cond_alpha_alt_neuron_nestml_model;
 
   // State variables
   n_scal_var_ = N_SCAL_VAR;
@@ -105,41 +118,51 @@ int {{ neuronName }}::Init(int i_node_0, int n_node, int /*n_port*/,
   AllocParamArr();
   AllocVarArr();
 
-  scal_var_name_   = {{ neuronName }}_scal_var_name;
-  scal_param_name_ = {{ neuronName }}_scal_param_name;
-  port_var_name_   = {{ neuronName }}_port_var_name;
+  scal_var_name_   = aeif_cond_alpha_alt_neuron_nestml_scal_var_name;
+  scal_param_name_ = aeif_cond_alpha_alt_neuron_nestml_scal_param_name;
+  port_var_name_   = aeif_cond_alpha_alt_neuron_nestml_port_var_name;
 
-  // Parameters
-{%- for variable_symbol in neuron.get_parameter_symbols() %}
-{%-     set variable = utils.get_parameter_variable_by_name(astnode, variable_symbol.get_symbol_name()) %}
-  SetScalParam(0, n_node, "{{ printer_no_origin.print(variable) }}",
-               {{ printer.print(variable_symbol.get_declaring_expression()) }});
-{%- endfor %}
 
-  // Internal variables
-{%- for variable_symbol in neuron.get_internal_symbols() %}
-{%-     set variable = utils.get_internal_variable_by_name(astnode, variable_symbol.get_symbol_name()) %}
-  SetScalParam(0, n_node, "{{ printer_no_origin.print(variable) }}", 0.0);
-{%- endfor %}
+  // Parameters (defaults)
 
-  // Continuous input ports
-{%- for variable_symbol in neuron.get_continuous_input_ports() %}
-{%-     set variable = utils.get_input_port_by_name(astnode.get_input_blocks(), variable_symbol.get_symbol_name()) %}
-  SetScalParam(0, n_node, "{{ variable.get_name() }}", 0.0);
-{%- endfor %}
+  SetScalParam(0, n_node, "C_m",         281.0);   // pF
+  SetScalParam(0, n_node, "refr_T",      2.0);     // ms
+  SetScalParam(0, n_node, "V_reset",    -60.0);    // mV
+  SetScalParam(0, n_node, "g_L",         30.0);    // nS
+  SetScalParam(0, n_node, "E_L",        -70.6);    // mV
+  SetScalParam(0, n_node, "a",            4.0);    // nS
+  SetScalParam(0, n_node, "b",           80.5);    // pA
+  SetScalParam(0, n_node, "Delta_T",      2.0);    // mV
+  SetScalParam(0, n_node, "tau_w",      144.0);    // ms
+  SetScalParam(0, n_node, "V_th",       -50.4);    // mV
+  SetScalParam(0, n_node, "V_peak",       0.0);    // mV
+  SetScalParam(0, n_node, "tau_syn_exc",  0.2);    // ms
+  SetScalParam(0, n_node, "tau_syn_inh",  2.0);    // ms
+  SetScalParam(0, n_node, "E_exc",        0.0);    // mV
+  SetScalParam(0, n_node, "E_inh",      -85.0);    // mV
+  SetScalParam(0, n_node, "I_e",          0.0);    // pA
+  SetScalParam(0, n_node, "I_stim",       0.0);    // pA
+
 
   // State variables
-{%- for variable_symbol in neuron.get_state_symbols_sorted_by_suffix() %}
-{%-     set variable = utils.get_state_variable_by_name(astnode, variable_symbol.get_symbol_name()) %}
-  SetScalVar(0, n_node, "{{ printer_no_origin.print(variable) }}",
-             {{ printer.print(variable_symbol.get_declaring_expression()) }});
-{%- endfor %}
+
+  SetScalVar(0, n_node, "V_m",   *GetScalParam(0, n_node, "E_L"));
+  SetScalVar(0, n_node, "w",      0.0);
+  SetScalVar(0, n_node, "refr_t", 0.0);
+  SetScalVar(0, n_node, "g_exc",  0.0);
+  SetScalVar(0, n_node, "g_exc__d", 0.0);
+  SetScalVar(0, n_node, "g_inh",  0.0);
+  SetScalVar(0, n_node, "g_inh__d", 0.0);
+
 
   // Host-driven numeric solver using NEST GPU arrays
+
   odeint_solver_ = new AeifCondAlphaAltOdeintSolver(
       n_node_, var_arr_, n_var_, param_arr_, n_param_);
 
-  // multiplication factor of input signal is always 1 for all nodes
+
+  // Input handling
+
   float input_weight = 1.0f;
   gpuErrchk(cudaMalloc(&port_weight_arr_, sizeof(float)));
   gpuErrchk(cudaMemcpy(port_weight_arr_, &input_weight,
@@ -147,21 +170,20 @@ int {{ neuronName }}::Init(int i_node_0, int n_node, int /*n_port*/,
   port_weight_arr_step_  = 0;
   port_weight_port_step_ = 0;
 
-  // process the input spikes
-  port_input_arr_       = GetVarArr() + n_scal_var_ + GetPortVarIdx("{{ utils.get_first_excitatory_port(neuron) }}");
+  port_input_arr_       = GetVarArr() + n_scal_var_ + GetPortVarIdx("exc_spikes");
   port_input_arr_step_  = n_var_;
   port_input_port_step_ = 1;
 
   return 0;
 }
 
-int {{ neuronName }}::Calibrate(double /*time_min*/, float /*time_resolution*/)
+int aeif_cond_alpha_alt_neuron_nestml::Calibrate(double /*time_min*/, float /*time_resolution*/)
 {
-  // ODEINT path does not need RK5 / analytic calibration
+  // ODEINT path does not need RK5/analytic calibration.
   return 0;
 }
 
-int {{ neuronName }}::Update(long long /*it*/, double t1)
+int aeif_cond_alpha_alt_neuron_nestml::Update(long long /*it*/, double t1)
 {
   float dt = 0.0f;
   gpuErrchk(cudaMemcpyFromSymbol(&dt, NESTGPUTimeResolution, sizeof(float)));
@@ -170,13 +192,13 @@ int {{ neuronName }}::Update(long long /*it*/, double t1)
 
   odeint_solver_->Step(t0, dt);
 
-  {{ neuronName }}_PostUpdate<<<(n_node_ + 1023) / 1024, 1024>>>(
+  aeif_cond_alpha_alt_neuron_nestml_PostUpdate<<<(n_node_ + 1023) / 1024, 1024>>>(
       n_node_, i_node_0_, var_arr_, param_arr_, n_var_, n_param_);
 
   return 0;
 }
 
-int {{ neuronName }}::Free()
+int aeif_cond_alpha_alt_neuron_nestml::Free()
 {
   delete odeint_solver_;
   odeint_solver_ = nullptr;

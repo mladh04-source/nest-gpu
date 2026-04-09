@@ -1,4 +1,3 @@
-
 /*
  *  aeif_cond_alpha_alt_neuron_nestml.h
  *
@@ -20,28 +19,18 @@
  *  along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 #ifndef AEIF_COND_ALPHA_ALT_NEURON_NESTML_H
 #define AEIF_COND_ALPHA_ALT_NEURON_NESTML_H
 
 #include <iostream>
 #include <string>
+
 #include "cuda_error.h"
-#include "rk5.h"
 #include "node_group.h"
 #include "base_neuron.h"
 #include "neuron_models.h"
-
-// ================= EXPERIMENT SWITCH =================
-// 0 -> original RK5 solver (unchanged)
-// 1 -> numeric solver using odeint-style + Thrust (experimental)
-#ifndef USE_ODEINT_THRUST
-#define USE_ODEINT_THRUST 0
-#endif
-// =====================================================
-
-#if USE_ODEINT_THRUST
 #include "aeif_cond_alpha_alt_odeint_solver.h"
-#endif
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
@@ -49,6 +38,7 @@ extern __constant__ float NESTGPUTimeResolution;
 
 namespace aeif_cond_alpha_alt_neuron_nestml_ns
 {
+
 enum ScalVarIndexes {
   i_V_m,
   i_w,
@@ -77,7 +67,6 @@ enum ScalParamIndexes {
   i_E_exc,
   i_E_inh,
   i_I_e,
-  i___h,
   i_I_stim,
   N_SCAL_PARAM
 };
@@ -115,7 +104,6 @@ const std::string aeif_cond_alpha_alt_neuron_nestml_scal_param_name[N_SCAL_PARAM
   "E_exc",
   "E_inh",
   "I_e",
-  "__h",
   "I_stim",
 };
 
@@ -124,77 +112,25 @@ const std::string aeif_cond_alpha_alt_neuron_nestml_port_var_name[N_PORT_VAR] = 
   "inh_spikes",
 };
 
-enum GroupParamIndexes {
-  i_h_min_rel = 0,  // Min. step in ODE integr. relative to time resolution
-  i_h0_rel,         // Starting step in ODE integr. relative to time resolution
-  N_GROUP_PARAM
-};
+} // namespace aeif_cond_alpha_alt_neuron_nestml_ns
 
-const std::string aeif_cond_alpha_alt_neuron_nestml_group_param_name[N_GROUP_PARAM] = {
-  "h_min_rel",
-  "h0_rel"
-};
-
-}; // namespace
-
-struct aeif_cond_alpha_alt_neuron_nestml_rk5
-{
-  int i_node_0_;
-};
-
-template<int NVAR, int NPARAM>
-__device__
-void Derivatives(double x, float *y, float *dydx, float *param,
-                 aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct);
-
-template<int NVAR, int NPARAM>
-__device__
-void ExternalUpdate(double x, float *y, float *param, bool end_time_step,
-                    aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct);
-
-__device__
-void NodeInit(int n_var, int n_param, double x, float *y,
-              float *param, aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct);
-
-__device__
-void NodeCalibrate(int n_var, int n_param, double x, float *y,
-                   float *param, aeif_cond_alpha_alt_neuron_nestml_rk5 data_struct);
 
 class aeif_cond_alpha_alt_neuron_nestml : public BaseNeuron
 {
- public:
+public:
   ~aeif_cond_alpha_alt_neuron_nestml();
 
-  // Original RK5 object kept unchanged.
-  // In numeric mode, it is still used to allocate and initialize var_arr_/param_arr_.
-  RungeKutta5<aeif_cond_alpha_alt_neuron_nestml_rk5> rk5_;
-
-#if USE_ODEINT_THRUST
-  // Experimental host-driven solver
+  // Host-driven numeric solver operating directly on NEST GPU arrays
   AeifCondAlphaAltOdeintSolver* odeint_solver_ = nullptr;
-#endif
-
-  float h_min_;
-  float h_;
-  aeif_cond_alpha_alt_neuron_nestml_rk5 rk5_data_struct_;
 
   int Init(int i_node_0, int n_neuron, int n_port, int i_group,
            unsigned long long* seed = nullptr);
 
-  int Calibrate(double, float time_resolution);
+  int Calibrate(double time_min, float time_resolution);
 
   int Update(long long it, double t1);
 
-  int GetX(int i_neuron, int n_node, double *x) {
-    return rk5_.GetX(i_neuron, n_node, x);
-  }
-
-  int GetY(int i_var, int i_neuron, int n_node, float *y) {
-    return rk5_.GetY(i_var, i_neuron, n_node, y);
-  }
-
-  template<int N_PORT>
-  int UpdateNR(long long it, double t1);
+  int Free();
 };
 
-#endif
+#endif // AEIF_COND_ALPHA_ALT_NEURON_NESTML_H

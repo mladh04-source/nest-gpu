@@ -87,7 +87,7 @@ __device__
 {  
 
     dydx[i_V_m] =1.0 * param[i_I_e] + 1.0 * param[i_I_stim] - 1.0 * y[i_U_m] + 0.04 * pow(y[i_V_m], 2) + 5.0 * y[i_V_m] + 140.0;
-    dydx[i_U_m] =param[i_a] * ((-1.0) * y[i_U_m] + 1.0 * y[i_V_m] * param[i_b]);
+    dydx[i_U_m] =(-1.0) * y[i_U_m] * param[i_a] + 1.0 * y[i_V_m] * param[i_a] * param[i_b];
 
     // Input port variables should always be set to 0
     dydx[N_SCAL_VAR + i_spikes] = 0;
