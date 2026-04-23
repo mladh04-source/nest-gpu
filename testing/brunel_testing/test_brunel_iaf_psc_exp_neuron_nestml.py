@@ -57,7 +57,7 @@ def get_spike_times(neurons, n_exc, n_inh):
     return exc_data, inh_data, exc_count, inh_count, cv_mean
 
 
-def raster_plot(exc_spikes, inh_spikes, outname="brunel_aeif_raster.png"):
+def raster_plot(exc_spikes, inh_spikes, outname="brunel_iaf_raster.png"):
     plt.figure(figsize=(12, 7))
 
     if exc_spikes:
@@ -78,7 +78,7 @@ def raster_plot(exc_spikes, inh_spikes, outname="brunel_aeif_raster.png"):
     plt.close()
 
 
-def save_voltage_trace(record, outprefix="brunel_aeif"):
+def save_voltage_trace(record, outprefix="brunel_iaf"):
     data_list = ngpu.GetRecordData(record)
     t = [row[0] for row in data_list]
     traces = []
@@ -123,7 +123,7 @@ def main():
     total_requested = int(sys.argv[1])
     order = total_requested // 5
 
-    print("Building Brunel network for aeif_cond_alpha_alt_neuron_nestml ...")
+    print("Building Brunel network for iaf_psc_exp_neuron_nestml ...")
 
     ngpu.SetKernelStatus("rnd_seed", 1234)
     ngpu.SetTimeResolution(0.1)
@@ -136,34 +136,27 @@ def main():
     ce = int(epsilon * n_exc)
     ci = int(epsilon * n_inh)
 
-    g = 7.0
+    g = 6.0
     w_ex = 10.0
     w_in = g * w_ex
 
     sim_time = 1000.0
 
-    poiss_rate = 4200.0
-    poiss_weight = 90.0
+    poiss_rate = 4800.0
+    poiss_weight = 97.0
     poiss_delay = 1.5
 
-    tau_syn_exc = 0.2
-    tau_syn_inh = 2.0
-    c_m = 281.0
-    g_l = 30.0
-    e_l = -70.6
-    v_reset = -60.0
-    v_th = -50.4
-    v_peak = -40.0
-    a = 4.0
-    b = 80.5
-    delta_t = 2.0
-    tau_w = 144.0
-    e_exc = 0.0
-    e_inh = -85.0
+    tau_syn_exc = 1.0
+    tau_syn_inh = 1.0
+    tau_m = 10.0
+    c_m = 250.0
+    e_l = 0.0
+    v_reset = 0.0
+    v_th = 20.0
     refr_t = 2.0
-    i_e = 155.0
+    i_e = 0.0
 
-    neuron = ngpu.Create("aeif_cond_alpha_alt_neuron_nestml", n_neurons)
+    neuron = ngpu.Create("iaf_psc_exp_neuron_nestml", n_neurons)
     exc_neuron = neuron[0:n_exc]
     inh_neuron = neuron[n_exc:n_neurons]
 
@@ -171,20 +164,14 @@ def main():
         neuron,
         {
             "C_m": c_m,
-            "g_L": g_l,
-            "E_L": e_l,
-            "V_reset": v_reset,
-            "V_th": v_th,
-            "V_peak": v_peak,
-            "a": a,
-            "b": b,
-            "Delta_T": delta_t,
-            "tau_w": tau_w,
+            "tau_m": tau_m,
             "tau_syn_exc": tau_syn_exc,
             "tau_syn_inh": tau_syn_inh,
-            "E_exc": e_exc,
-            "E_inh": e_inh,
             "refr_T": refr_t,
+            "E_L": e_l,
+            "V_reset": v_reset,
+            "V_m": e_l,
+            "V_th": v_th,
             "I_e": i_e,
             "I_stim": 0.0,
         },
@@ -207,7 +194,7 @@ def main():
 
     ngpu.ActivateRecSpikeTimes(neuron, 2000)
 
-    filename = "brunel_aeif_multimeter.dat"
+    filename = "brunel_iaf_multimeter.dat"
     i_neuron_arr = [
         neuron[37],
         neuron[randrange(n_neurons)],
@@ -222,8 +209,8 @@ def main():
 
     exc_data, inh_data, exc_count, inh_count, cv = get_spike_times(neuron, n_exc, n_inh)
 
-    raster_plot(exc_data, inh_data, outname="brunel_aeif_cond_alpha_alt_raster.png")
-    save_voltage_trace(record, outprefix="brunel_aeif_cond_alpha_alt")
+    raster_plot(exc_data, inh_data, outname="brunel_iaf_psc_exp_raster.png")
+    save_voltage_trace(record, outprefix="brunel_iaf_psc_exp")
 
     compute_stats(exc_count, inh_count, n_exc, n_inh, sim_time, ce, ci)
     print(f"CV : {cv:.4f}" if not np.isnan(cv) else "CV : nan")
