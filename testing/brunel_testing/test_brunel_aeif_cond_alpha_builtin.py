@@ -107,14 +107,14 @@ def main():
     CE = int(epsilon * NE)
     CI = int(epsilon * NI)
 
-    g = 6.0
-    Wex = 10.0
+    g = 4.0
+    Wex = 6.0
     Win = g * Wex
 
-    sim_time = 1000.0
+    sim_time = 200.0
 
-    poiss_rate = 4800.0
-    poiss_weight = 97.0
+    poiss_rate = 4200.0
+    poiss_weight = 35.0
     poiss_delay = 1.5
 
     neuron = ngpu.Create("aeif_cond_alpha", n_neurons)
@@ -125,21 +125,21 @@ def main():
     print("Available params:", available_params)
 
     candidate_params = {
-        "C_m": 281.0,
-        "g_L": 30.0,
-        "E_L": -70.6,
-        "V_reset": -60.0,
-        "V_th": -50.4,
-        "V_peak": 0.0,
-        "a": 4.0,
-        "b": 80.5,
+        "C_m": 200.0,
+        "g_L": 10.0,
+        "E_L": -63.0,
+        "V_reset": -65.0,
+        "V_th": -50.0,
+        "V_peak": -40.0,
+        "a": 0.0,
+        "b": 40.0,
         "Delta_T": 2.0,
-        "tau_w": 144.0,
-        "tau_syn_ex": 0.2,
-        "tau_syn_in": 2.0,
+        "tau_w": 500.0,
+        "tau_syn_ex": 0.5,
+        "tau_syn_in": 0.5,
         "E_ex": 0.0,
         "E_in": -85.0,
-        "t_ref": 2.0,
+        "t_ref": 0.0,
         "I_e": 200.0
     }
 

@@ -136,32 +136,32 @@ def main():
     ce = int(epsilon * n_exc)
     ci = int(epsilon * n_inh)
 
-    g = 7.0
-    w_ex = 10.0
+    g = 6.5
+    w_ex = 6.0
     w_in = g * w_ex
 
-    sim_time = 1000.0
+    sim_time = 200.0
 
-    poiss_rate = 4200.0
-    poiss_weight = 90.0
+    poiss_rate = 4000.0
+    poiss_weight = 35.0
     poiss_delay = 1.5
 
-    tau_syn_exc = 0.2
-    tau_syn_inh = 2.0
-    c_m = 281.0
-    g_l = 30.0
-    e_l = -70.6
-    v_reset = -60.0
-    v_th = -50.4
+    tau_syn_exc = 0.5
+    tau_syn_inh = 0.5
+    c_m = 250.0
+    g_l = 10.0
+    e_l = -63.0
+    v_reset = -65.0
+    v_th = -50.0
     v_peak = -40.0
-    a = 4.0
-    b = 80.5
+    a = 0.0
+    b = 40.0
     delta_t = 2.0
-    tau_w = 144.0
+    tau_w = 500.0
     e_exc = 0.0
     e_inh = -85.0
-    refr_t = 2.0
-    i_e = 155.0
+    refr_t = 0.0
+    i_e = 0.0
 
     neuron = ngpu.Create("aeif_cond_alpha_alt_neuron_nestml", n_neurons)
     exc_neuron = neuron[0:n_exc]

@@ -130,14 +130,14 @@ def main():
     ce = int(epsilon * n_exc)
     ci = int(epsilon * n_inh)
 
-    g = 6.0
-    w_ex = 10.0
+    g = 7.0
+    w_ex = 6.0
     w_in = g * w_ex
 
-    sim_time = 1000.0
+    sim_time = 200.0
 
-    poiss_rate = 4800.0
-    poiss_weight = 97.0
+    poiss_rate = 4000.0
+    poiss_weight = 35.0
     poiss_delay = 1.5
 
     neuron = ngpu.Create("iaf_psc_exp", n_neurons)
@@ -147,8 +147,8 @@ def main():
     candidate_params = {
         "C_m": 250.0,
         "tau_m": 10.0,
-        "tau_syn_ex": 1.0,
-        "tau_syn_in": 1.0,
+        "tau_syn_ex": 0.5,
+        "tau_syn_in": 0.5,
         "t_ref": 2.0,
         "E_L": 0.0,
         "V_reset": 0.0,
