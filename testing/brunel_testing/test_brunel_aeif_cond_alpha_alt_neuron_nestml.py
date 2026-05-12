@@ -20,11 +20,11 @@ def compute_cv(spike_train):
 def compute_cv_for_neurons(spike_trains):
     cvs = []
     for spike_train in spike_trains:
+      if len(spike_train) > 2:
         cv = compute_cv(spike_train)
         if not np.isnan(cv):
             cvs.append(cv)
     return np.mean(cvs) if cvs else np.nan
-
 
 def get_spike_times(neurons, n_exc, n_inh):
     spike_times = ngpu.GetRecSpikeTimes(neurons)
@@ -77,6 +77,15 @@ def raster_plot(exc_spikes, inh_spikes, outname="brunel_aeif_raster.png"):
     plt.savefig(outname, dpi=200)
     plt.close()
 
+def randomize_initial_v_m(neurons, e_l, v_th, seed=1234):
+    rng = np.random.default_rng(seed)
+
+    n = len(neurons)
+    v_init = rng.uniform(e_l - 2.0, e_l + 6.0, size=n)
+
+    for i in range(n):
+        gid = neurons[i]
+        ngpu.SetStatus([gid], {"V_m": float(v_init[i])})
 
 def save_voltage_trace(record, outprefix="brunel_aeif"):
     data_list = ngpu.GetRecordData(record)
@@ -136,14 +145,14 @@ def main():
     ce = int(epsilon * n_exc)
     ci = int(epsilon * n_inh)
 
-    g = 6.5
-    w_ex = 6.0
+    g = 8.0
+    w_ex = 0.035
     w_in = g * w_ex
 
-    sim_time = 200.0
+    sim_time = 1000.0
 
-    poiss_rate = 4000.0
-    poiss_weight = 35.0
+    poiss_rate = 4800.0
+    poiss_weight = 0.48
     poiss_delay = 1.5
 
     tau_syn_exc = 0.5
@@ -154,13 +163,13 @@ def main():
     v_reset = -65.0
     v_th = -50.0
     v_peak = -40.0
-    a = 0.0
-    b = 40.0
+    a = 1.0
+    b = 25.0
     delta_t = 2.0
-    tau_w = 500.0
+    tau_w = 150.0
     e_exc = 0.0
     e_inh = -85.0
-    refr_t = 0.0
+    refr_t = 2.0
     i_e = 0.0
 
     neuron = ngpu.Create("aeif_cond_alpha_alt_neuron_nestml", n_neurons)
@@ -189,6 +198,9 @@ def main():
             "I_stim": 0.0,
         },
     )
+    
+    randomize_initial_v_m(neuron, e_l=e_l, v_th=v_th, seed=1234)
+
 
     exc_conn_dict = {"rule": "fixed_indegree", "indegree": ce}
     exc_syn_dict = {"weight": w_ex, "delay": 1.5, "receptor": 0}

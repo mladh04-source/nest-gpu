@@ -14,7 +14,16 @@ def compute_cv(spike_train):
         return np.nan
     return std_isi / mean_isi
 
+def randomize_initial_v_m(neurons, e_l=-63.0, seed=1234):
+    rng = np.random.default_rng(seed)
 
+    n = len(neurons)
+    v_init = rng.uniform(e_l - 2.0, e_l + 6.0, size=n)
+
+    for i in range(n):
+        gid = neurons[i]
+        ngpu.SetStatus([gid], {"V_m": float(v_init[i])})
+        
 def compute_cv_for_neurons(spike_trains):
     cvs = []
     for spike_train in spike_trains:
@@ -98,6 +107,8 @@ def main():
     print("Building AEIF built-in Brunel network ...")
 
     ngpu.SetKernelStatus("rnd_seed", 1234)
+    #new
+    ngpu.SetTimeResolution(0.1)
 
     NE = 4 * order
     NI = 1 * order
@@ -107,14 +118,14 @@ def main():
     CE = int(epsilon * NE)
     CI = int(epsilon * NI)
 
-    g = 4.0
-    Wex = 6.0
+    g = 8.0
+    Wex = 0.035
     Win = g * Wex
 
-    sim_time = 200.0
+    sim_time = 1000.0
 
-    poiss_rate = 4200.0
-    poiss_weight = 35.0
+    poiss_rate = 4800.0
+    poiss_weight = 0.48
     poiss_delay = 1.5
 
     neuron = ngpu.Create("aeif_cond_alpha", n_neurons)
@@ -125,22 +136,22 @@ def main():
     print("Available params:", available_params)
 
     candidate_params = {
-        "C_m": 200.0,
+        "C_m": 250.0,
         "g_L": 10.0,
         "E_L": -63.0,
         "V_reset": -65.0,
         "V_th": -50.0,
         "V_peak": -40.0,
-        "a": 0.0,
-        "b": 40.0,
+        "a": 1.0,
+        "b": 25.0,
         "Delta_T": 2.0,
-        "tau_w": 500.0,
+        "tau_w": 150.0,
         "tau_syn_ex": 0.5,
         "tau_syn_in": 0.5,
         "E_ex": 0.0,
         "E_in": -85.0,
-        "t_ref": 0.0,
-        "I_e": 200.0
+        "t_ref": 2.0,
+        "I_e": 0.0
     }
 
     filtered_params = {k: v for k, v in candidate_params.items() if k in available_params}
@@ -148,6 +159,8 @@ def main():
     if filtered_params:
         ngpu.SetStatus(neuron, filtered_params)
 
+    randomize_initial_v_m(neuron, e_l=-63.0, seed=1234)
+    
     exc_conn_dict = {"rule": "fixed_indegree", "indegree": CE}
     exc_syn_dict = {"weight": Wex, "delay": 1.5, "receptor": 0}
     ngpu.Connect(exc_neuron, neuron, exc_conn_dict, exc_syn_dict)

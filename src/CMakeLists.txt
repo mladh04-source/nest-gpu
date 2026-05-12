@@ -30,8 +30,6 @@ set ( nestgpu_sources
 	aeif_psc_alpha.h
 	aeif_cond_alpha_alt_neuron_nestml.cu # new
 	aeif_cond_alpha_alt_neuron_nestml.h #new
-	aeif_cond_alpha_alt_odeint_solver.h # new 
-        aeif_cond_alpha_alt_odeint_solver.cu # new
 	aeif_psc_alpha_kernel.h
 	aeif_psc_alpha_multisynapse.h
 	aeif_psc_alpha_multisynapse_kernel.h
@@ -133,8 +131,8 @@ set ( nestgpu_sources
 	random.cu
 	rev_spike.cu
 	rk5.cu
-	iaf_psc_exp_neuron_nestml.h
-	iaf_psc_exp_neuron_nestml.cu
+	iaf_psc_exp_neuron_nestml.h #new
+	iaf_psc_exp_neuron_nestml.cu # new
 	scan.cu
 	send_spike.cu
 	spike_buffer.cu

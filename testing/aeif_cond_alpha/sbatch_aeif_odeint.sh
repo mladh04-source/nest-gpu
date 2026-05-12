@@ -21,8 +21,7 @@ export LD_LIBRARY_PATH="$(python3 -c "import sysconfig; print(sysconfig.get_conf
 export MODEL_NAME=aeif_cond_alpha_alt_neuron_nestml
 export OUTFILE=/p/project1/cslns/natouf1/output_vm_aeif_odeint.txt
 export PLOT_FILE=/p/project1/cslns/natouf1/plot_aeif_odeint.png
-export REFERENCE_FILE=/p/project1/cslns/natouf1/output_vm_aeif_builtin.txt
-# tolerance for reporting
-export TOLERANCE=1e-4
+
+
 
 python3 /p/project1/cslns/natouf1/test_aeif_cond_alpha_compare.py

@@ -25,12 +25,11 @@
 
 #include <iostream>
 #include <string>
-
+#include <thrust/device_vector.h>
 #include "cuda_error.h"
 #include "node_group.h"
 #include "base_neuron.h"
 #include "neuron_models.h"
-#include "aeif_cond_alpha_alt_odeint_solver.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
@@ -120,8 +119,14 @@ class aeif_cond_alpha_alt_neuron_nestml : public BaseNeuron
 public:
   ~aeif_cond_alpha_alt_neuron_nestml();
 
-  // Host-driven numeric solver operating directly on NEST GPU arrays
-  AeifCondAlphaAltOdeintSolver* odeint_solver_ = nullptr;
+  /*
+   * Compact Boost.Odeint / Thrust state buffer.
+   *
+   * This mirrors only the scalar ODE state variables: V_m, w, refr_t, g_exc, g_exc__d, g_inh, g_inh__d
+   *
+   * Port variables remain in the normal NEST GPU var_arr_.
+   */
+  thrust::device_vector<float>* ode_state_ = nullptr;
 
   int Init(int i_node_0, int n_neuron, int n_port, int i_group,
            unsigned long long* seed = nullptr);

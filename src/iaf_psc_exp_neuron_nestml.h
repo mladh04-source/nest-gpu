@@ -25,32 +25,27 @@
 
 #include <iostream>
 #include <string>
-
+#include <thrust/device_vector.h>
 #include "cuda_error.h"
 #include "node_group.h"
 #include "base_neuron.h"
 #include "neuron_models.h"
 
 // ================= EXPERIMENT SWITCH =================
-// 0 -> original analytic solver (unchanged)
-// 1 -> numeric solver using "odeint-style" + Thrust (experimental)
+// 0 : original analytic solver
+// 1 : Boost.Odeint + Thrust (without separate solver files)
 #ifndef USE_ODEINT_THRUST
-#define USE_ODEINT_THRUST 0
+#define USE_ODEINT_THRUST 1
 #endif
 // ====================================================
 
-#if USE_ODEINT_THRUST
-#include "iaf_psc_exp_odeint_solver.h"
-#endif
-
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
-// Note: In NEST GPU this is typically stored in __constant__ device memory.
-// The existing code uses it also from host-side logic (Update()).
 extern __constant__ float NESTGPUTimeResolution;
 
 namespace iaf_psc_exp_neuron_nestml_ns
 {
+
 enum ScalVarIndexes {
   i_V_m,
   i_refr_t,
@@ -120,21 +115,30 @@ const std::string iaf_psc_exp_neuron_nestml_port_var_name[N_PORT_VAR] = {
 
 } // namespace iaf_psc_exp_neuron_nestml_ns
 
+
 class iaf_psc_exp_neuron_nestml : public BaseNeuron
 {
 public:
   ~iaf_psc_exp_neuron_nestml();
 
 #if USE_ODEINT_THRUST
-  // Host-driven numeric solver.
-  // Owns only solver object, NOT var_arr_/param_arr_ (NEST GPU owns those).
-  IafPscExpOdeintSolver* odeint_solver_ = nullptr;
+  /*
+   * Compact Boost.Odeint / Thrust state buffer.
+   *
+   * This mirrors only the scalar ODE state variables: V_m, refr_t, I_syn_exc, I_syn_inh
+   * Port variables remain in the normal NEST GPU var_arr_ and are handled by iaf_psc_exp_neuron_nestml_PostUpdate.
+   * This replaces the separate IafPscExpOdeintSolver object.
+   */
+  thrust::device_vector<float>* ode_state_ = nullptr;
 #endif
 
   int Init(int i_node_0, int n_neuron, int n_port, int i_group,
-         unsigned long long* seed = nullptr);
+           unsigned long long* seed = nullptr);
+
   int Calibrate(double time_min, float time_resolution);
+
   int Update(long long it, double t1);
+
   int Free();
 };
 
