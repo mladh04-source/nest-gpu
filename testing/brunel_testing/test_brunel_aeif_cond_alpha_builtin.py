@@ -14,15 +14,45 @@ def compute_cv(spike_train):
         return np.nan
     return std_isi / mean_isi
 
-def randomize_initial_v_m(neurons, e_l=-63.0, seed=1234):
+def randomize_initial_state_aeif(neurons, e_l=-63.0, seed=1234):
     rng = np.random.default_rng(seed)
-
     n = len(neurons)
+
+    # Do not set membrane potential too close to threshold
     v_init = rng.uniform(e_l - 2.0, e_l + 6.0, size=n)
+
+    # Initial state closer to ongoing background activity (very impo)
+    # Values deliberately chosen to be moderate so that no new initial burst occurs
+    g_ex_init = np.clip(
+        rng.normal(loc=3.0, scale=0.6, size=n),
+        0.0,
+        None,
+    )
+
+    g_in_init = np.clip(
+        rng.normal(loc=0.08, scale=0.03, size=n),
+        0.0,
+        None,
+    )
+
+    # Do not let adaptation current start at 0 everywhere
+    w_init = np.clip(
+        rng.normal(loc=30.0, scale=8.0, size=n),
+        0.0,
+        None,
+    )
 
     for i in range(n):
         gid = neurons[i]
-        ngpu.SetStatus([gid], {"V_m": float(v_init[i])})
+        ngpu.SetStatus(
+            [gid],
+            {
+                "V_m": float(v_init[i]),
+                "g_ex": float(g_ex_init[i]),
+                "g_in": float(g_in_init[i]),
+                "w": float(w_init[i]),
+            },
+        )
         
 def compute_cv_for_neurons(spike_trains):
     cvs = []
@@ -124,8 +154,8 @@ def main():
 
     sim_time = 1000.0
 
-    poiss_rate = 4800.0
-    poiss_weight = 0.48
+    poiss_rate = 200.0
+    poiss_weight = 10.2
     poiss_delay = 1.5
 
     neuron = ngpu.Create("aeif_cond_alpha", n_neurons)
@@ -159,7 +189,7 @@ def main():
     if filtered_params:
         ngpu.SetStatus(neuron, filtered_params)
 
-    randomize_initial_v_m(neuron, e_l=-63.0, seed=1234)
+    randomize_initial_state_aeif(neuron, e_l=-63.0, seed=1234)
     
     exc_conn_dict = {"rule": "fixed_indegree", "indegree": CE}
     exc_syn_dict = {"weight": Wex, "delay": 1.5, "receptor": 0}
