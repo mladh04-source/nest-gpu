@@ -152,7 +152,7 @@ def main():
     sim_time = 1000.0
 
     poiss_rate = 200.0
-    poiss_weight = 8.0
+    poiss_weight = 9.1
     poiss_delay = 1.5
 
     tau_syn_exc = 0.5

@@ -1,0 +1,30 @@
+{
+  "family": "aeif",
+  "impl": "nestml",
+  "requested_neurons": 1000,
+  "actual_neurons": 1000,
+  "n_exc": 800,
+  "n_inh": 200,
+  "ce": 80,
+  "ci": 20,
+  "record_var": "V_m",
+  "record_neurons": [
+    37,
+    100,
+    999
+  ],
+  "neural_activity_simulation_time_ms": 1000.0,
+  "building_time_s": 0.21957871799997974,
+  "simulation_wall_time_s": 2.582149530999999,
+  "total_wall_time_s": 2.8017287589999853,
+  "w_ex": 0.035,
+  "w_in": 0.28,
+  "poiss_rate": 200.0,
+  "poiss_weight": 9.1,
+  "poiss_delay": 1.5,
+  "exc_spike_count": 8530,
+  "inh_spike_count": 2132,
+  "exc_rate_hz": 10.6625,
+  "inh_rate_hz": 10.66,
+  "cv": 0.5658819507535957
+}

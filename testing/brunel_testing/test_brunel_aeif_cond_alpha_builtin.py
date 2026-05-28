@@ -155,7 +155,7 @@ def main():
     sim_time = 1000.0
 
     poiss_rate = 200.0
-    poiss_weight = 10.2
+    poiss_weight = 9.1
     poiss_delay = 1.5
 
     neuron = ngpu.Create("aeif_cond_alpha", n_neurons)
