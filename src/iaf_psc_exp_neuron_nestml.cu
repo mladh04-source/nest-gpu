@@ -24,18 +24,20 @@
 #include <cmath>
 #include <iostream>
 
+#include "iaf_psc_exp_neuron_nestml.h"
+#include "spike_buffer.h"
+
 #if USE_ODEINT_THRUST
 #include <boost/numeric/odeint.hpp>
 #include <boost/numeric/odeint/external/thrust/thrust.hpp>
 #include <boost/ref.hpp>
+
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
+#include <thrust/device_ptr.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/system/cuda/execution_policy.h>
 #endif
-
-#include "iaf_psc_exp_neuron_nestml.h"
-#include "spike_buffer.h"
 
 using namespace iaf_psc_exp_neuron_nestml_ns;
 
@@ -51,13 +53,12 @@ typedef thrust::device_vector<value_type> ode_state_type;
 /*
  * Copy scalar NEST GPU state variables into a compact Odeint state vector.
  *
- * NEST layout: var_arr[i_neuron * n_var + scalar_index]
- *
- * Odeint layout: ode_state[i_neuron * N_SCAL_VAR + scalar_index]
- *
+ * NEST layout:var_arr[i_neuron * n_var + scalar_index]
+ * Odeint layout:ode_state[i_neuron * N_SCAL_VAR + scalar_index]
  * Port variables are intentionally not copied.
  */
-__global__ void iaf_psc_exp_neuron_nestml_CopyNestToOdeState(
+__global__
+void iaf_psc_exp_neuron_nestml_CopyNestToOdeState(
     int n_node,
     const float* var_arr,
     int n_var,
@@ -75,12 +76,13 @@ __global__ void iaf_psc_exp_neuron_nestml_CopyNestToOdeState(
     dst[i] = src[i];
 }
 
+
 /*
  * Copy the compact Odeint scalar state back into the NEST GPU state array.
- *
  * Port variables remain untouched here and are consumed by PostUpdate.
  */
-__global__ void iaf_psc_exp_neuron_nestml_CopyOdeStateToNest(
+__global__
+void iaf_psc_exp_neuron_nestml_CopyOdeStateToNest(
     int n_node,
     float* var_arr,
     int n_var,
@@ -101,9 +103,9 @@ __global__ void iaf_psc_exp_neuron_nestml_CopyOdeStateToNest(
     dst[i_refr_t] = 0.0f;
 }
 
+
 /*
  * Device functor for the right-hand side of the ODE system.
- *
  * Odeint calls IafPscExpOdeintSystem on the host.
  * That system function launches this Thrust functor on the GPU.
  */
@@ -136,7 +138,6 @@ struct IafPscExpDerivativeFunctor
 
     /*
      * Synaptic current decay.
-     *
      * Synaptic currents decay in both normal and refractory states.
      */
     dydt[i_I_syn_exc] = -Iexc / tau_syn_exc;
@@ -156,7 +157,6 @@ struct IafPscExpDerivativeFunctor
     {
       /*
        * Normal subthreshold dynamics.
-       *
        * Inhibitory current is subtracted, matching the old numeric solver.
        */
       dydt[i_V_m] =
@@ -168,9 +168,9 @@ struct IafPscExpDerivativeFunctor
   }
 };
 
+
 /*
  * Boost.Odeint system function.
- *
  * x : compact scalar state vector on GPU
  * dxdt : compact derivative vector on GPU
  */
@@ -196,7 +196,11 @@ struct IafPscExpOdeintSystem
     functor.param = param;
     functor.param_stride = param_stride;
 
-    thrust::for_each(thrust::device, begin, end, functor);
+    /*
+     * CUDA execution policy.
+     * This is more robust than thrust::device on newer CUDA/Thrust versions.
+     */
+    thrust::for_each(thrust::cuda::par, begin, end, functor);
   }
 };
 
@@ -206,13 +210,13 @@ struct IafPscExpOdeintSystem
 
 
 /*
-
  * POST INTEGRATION KERNEL
  *
  * Used by Boost.Odeint numeric solver.
- * Handles: onReceive and  onCondition
+ * Handles: onReceive and onCondition.
  */
-__global__ void iaf_psc_exp_neuron_nestml_PostUpdate(
+__global__
+void iaf_psc_exp_neuron_nestml_PostUpdate(
     int n_node,
     int i_node_0,
     float* var_arr,
@@ -236,7 +240,9 @@ __global__ void iaf_psc_exp_neuron_nestml_PostUpdate(
    */
   if (var[N_SCAL_VAR + i_exc_spikes] != 0.0f)
   {
-    var[i_I_syn_exc] += (0.001f * var[N_SCAL_VAR + i_exc_spikes]) * 1000.0f;
+    var[i_I_syn_exc] +=
+      (0.001f * var[N_SCAL_VAR + i_exc_spikes]) * 1000.0f;
+
     var[N_SCAL_VAR + i_exc_spikes] = 0.0f;
   }
 
@@ -245,7 +251,9 @@ __global__ void iaf_psc_exp_neuron_nestml_PostUpdate(
    */
   if (var[N_SCAL_VAR + i_inh_spikes] != 0.0f)
   {
-    var[i_I_syn_inh] += (0.001f * var[N_SCAL_VAR + i_inh_spikes]) * 1000.0f;
+    var[i_I_syn_inh] +=
+      (0.001f * var[N_SCAL_VAR + i_inh_spikes]) * 1000.0f;
+
     var[N_SCAL_VAR + i_inh_spikes] = 0.0f;
   }
 
@@ -269,13 +277,13 @@ __global__ void iaf_psc_exp_neuron_nestml_PostUpdate(
 
 
 /*
-
  * ANALYTIC CALIBRATION KERNEL
  *
  * Used only by analytic solver.
- * (Numeric Boost.Odeint solver does not need these coefficients).
+ * Numeric Boost.Odeint solver does not need these coefficients.
  */
-__global__ void iaf_psc_exp_neuron_nestml_Calibrate(
+__global__
+void iaf_psc_exp_neuron_nestml_Calibrate(
     int n_node,
     float* param_arr,
     int n_param,
@@ -325,7 +333,8 @@ __global__ void iaf_psc_exp_neuron_nestml_Calibrate(
  *
  * This is the original analytic solver path.
  */
-__global__ void iaf_psc_exp_neuron_nestml_Update(
+__global__
+void iaf_psc_exp_neuron_nestml_Update(
     int n_node,
     int i_node_0,
     float* var_arr,
@@ -388,13 +397,17 @@ __global__ void iaf_psc_exp_neuron_nestml_Update(
    */
   if (var[N_SCAL_VAR + i_exc_spikes] != 0.0f)
   {
-    var[i_I_syn_exc] += (0.001f * var[N_SCAL_VAR + i_exc_spikes]) * 1000.0f;
+    var[i_I_syn_exc] +=
+      (0.001f * var[N_SCAL_VAR + i_exc_spikes]) * 1000.0f;
+
     var[N_SCAL_VAR + i_exc_spikes] = 0.0f;
   }
 
   if (var[N_SCAL_VAR + i_inh_spikes] != 0.0f)
   {
-    var[i_I_syn_inh] += (0.001f * var[N_SCAL_VAR + i_inh_spikes]) * 1000.0f;
+    var[i_I_syn_inh] +=
+      (0.001f * var[N_SCAL_VAR + i_inh_spikes]) * 1000.0f;
+
     var[N_SCAL_VAR + i_inh_spikes] = 0.0f;
   }
 
@@ -420,6 +433,7 @@ iaf_psc_exp_neuron_nestml::~iaf_psc_exp_neuron_nestml()
 {
   Free();
 }
+
 
 int iaf_psc_exp_neuron_nestml::Init(int i_node_0,
                                     int n_node,
@@ -447,7 +461,6 @@ int iaf_psc_exp_neuron_nestml::Init(int i_node_0,
   scal_param_name_ = iaf_psc_exp_neuron_nestml_scal_param_name;
   port_var_name_   = iaf_psc_exp_neuron_nestml_port_var_name;
 
-
   // Parameters
   SetScalParam(0, n_node, "C_m",         250.0);   // pF
   SetScalParam(0, n_node, "tau_m",        10.0);   // ms
@@ -471,31 +484,28 @@ int iaf_psc_exp_neuron_nestml::Init(int i_node_0,
   // Continuous input port
   SetScalParam(0, n_node, "I_stim", 0.0);
 
-
   // State variables
-  SetScalVar(0, n_node, "V_m",       *GetScalParam(0, n_node, "E_L"));
-  SetScalVar(0, n_node, "refr_t",     0.0);
-  SetScalVar(0, n_node, "I_syn_exc",  0.0);
-  SetScalVar(0, n_node, "I_syn_inh",  0.0);
-
+  SetScalVar(0, n_node, "V_m",      *GetScalParam(0, n_node, "E_L"));
+  SetScalVar(0, n_node, "refr_t",    0.0);
+  SetScalVar(0, n_node, "I_syn_exc", 0.0);
+  SetScalVar(0, n_node, "I_syn_inh", 0.0);
 
 #if USE_ODEINT_THRUST
   /*
    * Compact state buffer for Boost.Odeint's built-in RK45 / Dopri5 stepper.
    *
    * Size: n_node_ * N_SCAL_VAR
-   *
    * This replaces the separate Solver object.
    */
   ode_state_ = new thrust::device_vector<float>(
       static_cast<size_t>(n_node_) * static_cast<size_t>(N_SCAL_VAR));
 #endif
 
-
   // Multiplication factor of input signal is always 1 for all nodes
   float input_weight = 1.0f;
 
   gpuErrchk(cudaMalloc(&port_weight_arr_, sizeof(float)));
+
   gpuErrchk(cudaMemcpy(port_weight_arr_,
                        &input_weight,
                        sizeof(float),
@@ -505,17 +515,21 @@ int iaf_psc_exp_neuron_nestml::Init(int i_node_0,
   port_weight_port_step_ = 0;
 
   // Process the input spikes
-  port_input_arr_       = GetVarArr() + n_scal_var_ + GetPortVarIdx("exc_spikes");
+  port_input_arr_ =
+    GetVarArr() + n_scal_var_ + GetPortVarIdx("exc_spikes");
+
   port_input_arr_step_  = n_var_;
   port_input_port_step_ = 1;
 
   return 0;
 }
 
+
 int iaf_psc_exp_neuron_nestml::Calibrate(double /*time_min*/,
                                          float time_resolution)
 {
 #if !USE_ODEINT_THRUST
+
   /*
    * Analytic solver needs precomputed coefficients.
    */
@@ -527,21 +541,26 @@ int iaf_psc_exp_neuron_nestml::Calibrate(double /*time_min*/,
           time_resolution);
 
   gpuErrchk(cudaPeekAtLastError());
+
 #else
+
   /*
    * Boost.Odeint numeric solver does not need analytic precomputation.
    */
   (void) time_resolution;
+
 #endif
 
   return 0;
 }
+
 
 int iaf_psc_exp_neuron_nestml::Update(long long /*it*/, double t1)
 {
 #if USE_ODEINT_THRUST
 
   float dt = 0.0f;
+
   gpuErrchk(cudaMemcpyFromSymbol(&dt,
                                  NESTGPUTimeResolution,
                                  sizeof(float)));
@@ -563,11 +582,10 @@ int iaf_psc_exp_neuron_nestml::Update(long long /*it*/, double t1)
 
   gpuErrchk(cudaPeekAtLastError());
 
-
   /*
    * Built-in Boost.Odeint Dormand-Prince RK45 stepper.
    *
-   * This replaces the separate solver 
+   * This replaces the separate solver.
    */
   typedef boost::numeric::odeint::runge_kutta_dopri5<
       ode_state_type,
@@ -584,15 +602,14 @@ int iaf_psc_exp_neuron_nestml::Update(long long /*it*/, double t1)
 
   boost::numeric::odeint::integrate_adaptive(
       boost::numeric::odeint::make_controlled(
-          1.0e-5f,  // absolute tolerance
-          1.0e-4f,  // relative tolerance
+          1.0e-5f,
+          1.0e-4f,
           stepper_type()),
       boost::ref(system),
       *ode_state_,
       t0,
       t_end,
       dt);
-
 
   /*
    * Copy integrated scalar state back to normal NEST GPU state array.
@@ -606,7 +623,6 @@ int iaf_psc_exp_neuron_nestml::Update(long long /*it*/, double t1)
           ode_state_ptr);
 
   gpuErrchk(cudaPeekAtLastError());
-
 
   /*
    * Handle onReceive and onCondition after ODE integration.
@@ -642,6 +658,7 @@ int iaf_psc_exp_neuron_nestml::Update(long long /*it*/, double t1)
 
   return 0;
 }
+
 
 int iaf_psc_exp_neuron_nestml::Free()
 {

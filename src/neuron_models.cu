@@ -20,10 +20,6 @@
  *
  */
 
-
-
-
-
 #include <config.h>
 #include <iostream>
 #include <string>
@@ -32,43 +28,53 @@
 #include "cuda_error.h"
 #include "neuron_models.h"
 #include "nestgpu.h"
+
 #include "iaf_psc_exp.h"
 #include "iaf_psc_exp_neuron_nestml.h"
 #include "iaf_psc_exp_hc.h"
 #include "iaf_psc_exp_g.h"
+
 #include "ext_neuron.h"
+
 #include "aeif_cond_alpha.h"
 #include "aeif_cond_alpha_alt_neuron_nestml.h"
+#include "old_aeif_cond_alpha_alt_neuron_nestml.h"
 #include "aeif_cond_beta.h"
 #include "aeif_psc_alpha.h"
 #include "aeif_psc_delta.h"
 #include "aeif_psc_exp.h"
+
 #include "aeif_cond_beta_multisynapse.h"
 #include "aeif_cond_alpha_multisynapse.h"
 #include "aeif_psc_alpha_multisynapse.h"
 #include "aeif_psc_exp_multisynapse.h"
+
 #include "poiss_gen.h"
 #include "spike_generator.h"
 #include "parrot_neuron.h"
 #include "spike_detector.h"
+
 #include "izhikevich_cond_beta.h"
 #include "izhikevich.h"
 #include "izhikevich_psc_exp_5s.h"
 #include "izhikevich_psc_exp_2s.h"
 #include "izhikevich_psc_exp.h"
+
 #include "user_m1.h"
 #include "user_m2.h"
 
 NodeSeq NESTGPU::Create(std::string model_name, int n_node /*=1*/,
-			  int n_port /*=1*/)
+                        int n_port /*=1*/)
 {
   CheckUncalibrated("Nodes cannot be created after calibration");
+
   if (n_node <= 0) {
     throw ngpu_exception("Number of nodes must be greater than zero.");
   }
   else if (n_port < 0) {
     throw ngpu_exception("Number of ports must be >= zero.");
   }
+
   if (model_name == neuron_model_name[i_iaf_psc_exp_g_model]) {
     n_port = 1;
     iaf_psc_exp_g *iaf_psc_exp_g_group = new iaf_psc_exp_g;
@@ -85,10 +91,10 @@ NodeSeq NESTGPU::Create(std::string model_name, int n_node /*=1*/,
     node_vect_.push_back(iaf_psc_exp_group);
   }
   else if (model_name == neuron_model_name[i_iaf_psc_exp_neuron_nestml_model]) {
-  n_port = 2;
-  iaf_psc_exp_neuron_nestml *iaf_psc_exp_neuron_nestml_group =
-    new iaf_psc_exp_neuron_nestml;
-  node_vect_.push_back(iaf_psc_exp_neuron_nestml_group);
+    n_port = 2;
+    iaf_psc_exp_neuron_nestml *iaf_psc_exp_neuron_nestml_group =
+      new iaf_psc_exp_neuron_nestml;
+    node_vect_.push_back(iaf_psc_exp_neuron_nestml_group);
   }
   else if (model_name == neuron_model_name[i_ext_neuron_model]) {
     ext_neuron *ext_neuron_group = new ext_neuron;
@@ -101,8 +107,15 @@ NodeSeq NESTGPU::Create(std::string model_name, int n_node /*=1*/,
   }
   else if (model_name == neuron_model_name[i_aeif_cond_alpha_alt_neuron_nestml_model]) {
     n_port = 2;
-    aeif_cond_alpha_alt_neuron_nestml * aeif_cond_alpha_alt_neuron_nestml_group = new aeif_cond_alpha_alt_neuron_nestml;
+    aeif_cond_alpha_alt_neuron_nestml *aeif_cond_alpha_alt_neuron_nestml_group =
+      new aeif_cond_alpha_alt_neuron_nestml;
     node_vect_.push_back(aeif_cond_alpha_alt_neuron_nestml_group);
+  }
+  else if (model_name == neuron_model_name[i_old_aeif_cond_alpha_alt_neuron_nestml_model]) {
+    n_port = 2;
+    old_aeif_cond_alpha_alt_neuron_nestml *old_aeif_cond_alpha_alt_neuron_nestml_group =
+      new old_aeif_cond_alpha_alt_neuron_nestml;
+    node_vect_.push_back(old_aeif_cond_alpha_alt_neuron_nestml_group);
   }
   else if (model_name == neuron_model_name[i_aeif_cond_beta_model]) {
     n_port = 2;
@@ -125,19 +138,23 @@ NodeSeq NESTGPU::Create(std::string model_name, int n_node /*=1*/,
     node_vect_.push_back(aeif_psc_exp_group);
   }
   else if (model_name == neuron_model_name[i_aeif_cond_beta_multisynapse_model]) {
-    aeif_cond_beta_multisynapse *aeif_cond_beta_multisynapse_group = new aeif_cond_beta_multisynapse;
+    aeif_cond_beta_multisynapse *aeif_cond_beta_multisynapse_group =
+      new aeif_cond_beta_multisynapse;
     node_vect_.push_back(aeif_cond_beta_multisynapse_group);
   }
   else if (model_name == neuron_model_name[i_aeif_cond_alpha_multisynapse_model]) {
-    aeif_cond_alpha_multisynapse *aeif_cond_alpha_multisynapse_group = new aeif_cond_alpha_multisynapse;
+    aeif_cond_alpha_multisynapse *aeif_cond_alpha_multisynapse_group =
+      new aeif_cond_alpha_multisynapse;
     node_vect_.push_back(aeif_cond_alpha_multisynapse_group);
   }
   else if (model_name == neuron_model_name[i_aeif_psc_exp_multisynapse_model]) {
-    aeif_psc_exp_multisynapse *aeif_psc_exp_multisynapse_group = new aeif_psc_exp_multisynapse;
+    aeif_psc_exp_multisynapse *aeif_psc_exp_multisynapse_group =
+      new aeif_psc_exp_multisynapse;
     node_vect_.push_back(aeif_psc_exp_multisynapse_group);
   }
   else if (model_name == neuron_model_name[i_aeif_psc_alpha_multisynapse_model]) {
-    aeif_psc_alpha_multisynapse *aeif_psc_alpha_multisynapse_group = new aeif_psc_alpha_multisynapse;
+    aeif_psc_alpha_multisynapse *aeif_psc_alpha_multisynapse_group =
+      new aeif_psc_alpha_multisynapse;
     node_vect_.push_back(aeif_psc_alpha_multisynapse_group);
   }
   else if (model_name == neuron_model_name[i_user_m1_model]) {
@@ -173,7 +190,8 @@ NodeSeq NESTGPU::Create(std::string model_name, int n_node /*=1*/,
     node_vect_.push_back(izhikevich_group);
   }
   else if (model_name == neuron_model_name[i_izhikevich_cond_beta_model]) {
-    izhikevich_cond_beta *izhikevich_cond_beta_group = new izhikevich_cond_beta;
+    izhikevich_cond_beta *izhikevich_cond_beta_group =
+      new izhikevich_cond_beta;
     node_vect_.push_back(izhikevich_cond_beta_group);
   }
   else if (model_name == neuron_model_name[i_izhikevich_psc_exp_5s_model]) {
@@ -187,12 +205,13 @@ NodeSeq NESTGPU::Create(std::string model_name, int n_node /*=1*/,
     node_vect_.push_back(izhikevich_psc_exp_2s_group);
   }
   else if (model_name == neuron_model_name[i_izhikevich_psc_exp_model]) {
-    izhikevich_psc_exp *izhikevich_psc_exp_group = new izhikevich_psc_exp;
+    izhikevich_psc_exp *izhikevich_psc_exp_group =
+      new izhikevich_psc_exp;
     node_vect_.push_back(izhikevich_psc_exp_group);
   }
   else {
-    throw ngpu_exception(std::string("Unknown neuron model name: ")
-			 + model_name);
+    throw ngpu_exception(std::string("Unknown neuron model name: ") + model_name);
   }
+
   return NodeSeq(CreateNodeGroup(n_node, n_port), n_node);
 }

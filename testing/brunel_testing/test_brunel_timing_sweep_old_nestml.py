@@ -27,16 +27,15 @@ def get_nestgpu_vars_script(impl):
 
 def worker_impl_name(impl):
     """
-    The worker script only knows 'builtin' and 'nestml'.
-    For old_nestml, we still pass 'nestml' to the worker,
-    but we source the old_nestml NEST-GPU installation before running it.
-    so we use the old_nestml code for the comparison but it has the name nestml
+    The old_nestml worker script knows 'builtin' and 'old_nestml'.
+    We source the old_nestml NEST-GPU installation, but we still pass
+    the implementation name 'old_nestml' to the worker.
     """
     if impl == "builtin":
         return "builtin"
 
     if impl == "old_nestml":
-        return "nestml"
+        return "old_nestml"
 
     raise ValueError(impl)
 

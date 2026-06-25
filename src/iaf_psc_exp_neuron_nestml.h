@@ -25,7 +25,7 @@
 
 #include <iostream>
 #include <string>
-#include <thrust/device_vector.h>
+
 #include "cuda_error.h"
 #include "node_group.h"
 #include "base_neuron.h"
@@ -33,11 +33,15 @@
 
 // ================= EXPERIMENT SWITCH =================
 // 0 : original analytic solver
-// 1 : Boost.Odeint + Thrust (without separate solver files)
+// 1 : Boost.Odeint + Thrust without separate solver files
 #ifndef USE_ODEINT_THRUST
 #define USE_ODEINT_THRUST 1
 #endif
 // ====================================================
+
+#if USE_ODEINT_THRUST
+#include <thrust/device_vector.h>
+#endif
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
@@ -125,14 +129,18 @@ public:
   /*
    * Compact Boost.Odeint / Thrust state buffer.
    *
-   * This mirrors only the scalar ODE state variables: V_m, refr_t, I_syn_exc, I_syn_inh
-   * Port variables remain in the normal NEST GPU var_arr_ and are handled by iaf_psc_exp_neuron_nestml_PostUpdate.
-   * This replaces the separate IafPscExpOdeintSolver object.
+   * This mirrors only the scalar ODE state variables:
+   * V_m, refr_t, I_syn_exc, I_syn_inh.
+   * Port variables remain in the normal NEST GPU var_arr_ and are handled by
+   * iaf_psc_exp_neuron_nestml_PostUpdate.
    */
   thrust::device_vector<float>* ode_state_ = nullptr;
 #endif
 
-  int Init(int i_node_0, int n_neuron, int n_port, int i_group,
+  int Init(int i_node_0,
+           int n_neuron,
+           int n_port,
+           int i_group,
            unsigned long long* seed = nullptr);
 
   int Calibrate(double time_min, float time_resolution);

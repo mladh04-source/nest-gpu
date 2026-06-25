@@ -30,6 +30,8 @@ set ( nestgpu_sources
 	aeif_psc_alpha.h
 	aeif_cond_alpha_alt_neuron_nestml.cu # new
 	aeif_cond_alpha_alt_neuron_nestml.h #new
+	old_aeif_cond_alpha_alt_neuron_nestml.h #new
+	old_aeif_cond_alpha_alt_neuron_nestml.cu #new
 	aeif_psc_alpha_kernel.h
 	aeif_psc_alpha_multisynapse.h
 	aeif_psc_alpha_multisynapse_kernel.h
