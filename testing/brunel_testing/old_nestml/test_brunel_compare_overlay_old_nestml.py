@@ -277,13 +277,33 @@ def create_aeif_model(ngpu, impl, cfg):
             "b": 25.0,
             "Delta_T": 2.0,
             "tau_w": 150.0,
+            "I_e": 0.0,
+
+            # new: Use the parameter names that are actually exposed by the old NESTML AEIF model.
+            "t_ref": 2.0,
+            "E_rev_ex": 0.0,
+            "E_rev_in": -85.0,
+            "tau_rise_ex": 0.5,
+            "tau_decay_ex": 0.5,
+            "tau_rise_in": 0.5,
+            "tau_decay_in": 0.5,
+
+            # new: Keep old generated aliases here as fallback, unavailable names are ignored by set_status_if_available().
             "tau_syn_exc": 0.5,
             "tau_syn_inh": 0.5,
             "E_exc": 0.0,
             "E_inh": -85.0,
             "refr_T": 2.0,
-            "I_e": 0.0,
             "I_stim": 0.0,
+
+            # new: Reset old NESTML conductance (state-like) variables if they are exposed.
+            "w": 0.0,
+            "g_ex": 0.0,
+            "g_in": 0.0,
+            "g0_ex": 0.0,
+            "g0_in": 0.0,
+            "g1_ex": 0.0,
+            "g1_in": 0.0,
         }
 
     set_status_if_available(ngpu, neuron, params, label=f"AEIF {impl}")
@@ -316,9 +336,19 @@ def connect_brunel_network(ngpu, family, impl, neuron, cfg):
         poiss_rate = 4800.0
 
     elif family == "aeif":
-        w_in = g * w_ex
         poiss_weight = 9.1
         poiss_rate = 200.0
+        
+        if impl == "builtin":
+            w_in = g * w_ex
+            
+        # new:
+        # Old NESTML case
+        # Only change the AEIF old_nestml recurrent strength
+        # The previous value w_ex = 0.035 caused a sharp transition from almost silent activity to spike-buffer overflow.
+        else:
+            w_ex = 0.0035
+            w_in = g * w_ex
 
     else:
         raise ValueError(family)

@@ -15,7 +15,7 @@ export MPLBACKEND=Agg
 export LD_LIBRARY_PATH="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))"):${LD_LIBRARY_PATH}"
 
 python3 /p/project1/cslns/natouf1/test_brunel_timing_sweep_old_nestml.py \
-    --neurons 1000 2000 \
+    --neurons 1000 2000 5000 \
     --families iaf aeif \
     --sim-time 1000.0 \
     --compare-script /p/project1/cslns/natouf1/test_brunel_compare_overlay_old_nestml.py \
