@@ -536,7 +536,7 @@ def get_nestgpu_vars_script(impl):
         return "/p/project1/cslns/natouf1/nest-gpu/install_numeric/bin/nestgpu_vars.sh"
 
     if impl == "nestml":
-        return "/p/project1/cslns/natouf1/nest-gpu/install_numeric_odeint/bin/nestgpu_vars.sh"
+        return "/p/project1/cslns/natouf1/nest-gpu/install/bin/nestgpu_vars.sh"
 
     raise ValueError(impl)
 

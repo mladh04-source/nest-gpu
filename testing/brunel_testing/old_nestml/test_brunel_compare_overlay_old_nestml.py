@@ -288,7 +288,7 @@ def create_aeif_model(ngpu, impl, cfg):
             "tau_rise_in": 0.5,
             "tau_decay_in": 0.5,
 
-            # new: Keep old generated aliases here as fallback, unavailable names are ignored by set_status_if_available().
+            # new: Keep old generated aliases here as fallback. unavailable names are ignored by set_status_if_available().
             "tau_syn_exc": 0.5,
             "tau_syn_inh": 0.5,
             "E_exc": 0.0,
@@ -296,7 +296,7 @@ def create_aeif_model(ngpu, impl, cfg):
             "refr_T": 2.0,
             "I_stim": 0.0,
 
-            # new: Reset old NESTML conductance (state-like) variables if they are exposed.
+            # new: Reset old NESTML conductance/state like variables if they are exposed.
             "w": 0.0,
             "g_ex": 0.0,
             "g_in": 0.0,
@@ -338,10 +338,10 @@ def connect_brunel_network(ngpu, family, impl, neuron, cfg):
     elif family == "aeif":
         poiss_weight = 9.1
         poiss_rate = 200.0
-        
+
         if impl == "builtin":
             w_in = g * w_ex
-            
+
         # new:
         # Old NESTML case
         # Only change the AEIF old_nestml recurrent strength
@@ -455,11 +455,17 @@ def run_worker(args):
         args.sim_time,
     )
 
+    build_time_s = build_end - build_start
+    sim_wall_time_s = sim_end - sim_start
+    total_wall_time_s = sim_end - build_start
+
+    actual_neurons = cfg["n_neurons"]
+
     stats = {
         "family": args.family,
         "impl": args.impl,
         "requested_neurons": args.n_neurons,
-        "actual_neurons": cfg["n_neurons"],
+        "actual_neurons": actual_neurons,
         "n_exc": cfg["n_exc"],
         "n_inh": cfg["n_inh"],
         "ce": cfg["ce"],
@@ -467,9 +473,18 @@ def run_worker(args):
         "record_var": record_var,
         "record_neurons": [int(x) for x in record_neurons],
         "neural_activity_simulation_time_ms": args.sim_time,
-        "building_time_s": build_end - build_start,
-        "simulation_wall_time_s": sim_end - sim_start,
-        "total_wall_time_s": sim_end - build_start,
+
+        # Absolute wall-clock timings.
+        "building_time_s": build_time_s,
+        "simulation_wall_time_s": sim_wall_time_s,
+        "total_wall_time_s": total_wall_time_s,
+
+        # Normalized timings.
+        # These are the values that should be used for the repeated-average timing summary plots.
+        "building_time_per_neuron_ms": 1000.0 * build_time_s / actual_neurons,
+        "simulation_wall_time_per_neuron_ms": 1000.0 * sim_wall_time_s / actual_neurons,
+        "total_wall_time_per_neuron_ms": 1000.0 * total_wall_time_s / actual_neurons,
+
         **conn_info,
         **spike_stats,
     }
@@ -544,8 +559,10 @@ def print_summary(outdir, family):
     print()
     print(f"===== {family.upper()} comparison summary: built-in vs old NESTML =====")
     print(
-        f"{'impl':<12} {'neurons':>8} {'build[s]':>12} "
-        f"{'sim wall[s]':>12} {'activity[ms]':>14} "
+        f"{'impl':<12} {'neurons':>8} "
+        f"{'build[s]':>12} {'sim wall[s]':>12} "
+        f"{'build/N[ms]':>14} {'sim/N[ms]':>14} "
+        f"{'activity[ms]':>14} "
         f"{'exc Hz':>10} {'inh Hz':>10} {'CV':>10}"
     )
 
@@ -553,11 +570,23 @@ def print_summary(outdir, family):
         cv = s["cv"]
         cv_str = "nan" if cv is None else f"{cv:.4f}"
 
+        build_per_neuron_ms = s.get(
+            "building_time_per_neuron_ms",
+            1000.0 * s["building_time_s"] / s["actual_neurons"],
+        )
+
+        sim_per_neuron_ms = s.get(
+            "simulation_wall_time_per_neuron_ms",
+            1000.0 * s["simulation_wall_time_s"] / s["actual_neurons"],
+        )
+
         print(
             f"{s['impl']:<12} "
             f"{s['actual_neurons']:>8} "
             f"{s['building_time_s']:>12.4f} "
             f"{s['simulation_wall_time_s']:>12.4f} "
+            f"{build_per_neuron_ms:>14.4f} "
+            f"{sim_per_neuron_ms:>14.4f} "
             f"{s['neural_activity_simulation_time_ms']:>14.1f} "
             f"{s['exc_rate_hz']:>10.2f} "
             f"{s['inh_rate_hz']:>10.2f} "

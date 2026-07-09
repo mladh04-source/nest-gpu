@@ -293,66 +293,63 @@ def plot_summary(summary_rows, outdir):
         labels = [f"N={n}" for n in neuron_counts]
         x = np.arange(len(neuron_counts))
 
-        # 4 bars per neuron count:
+        # 4 bars per  neuron count:
         # builtin building, builtin simulation, old_nestml building, old_nestml simulation
-        bar_labels = []
-        bar_values = []
-        bar_errors = []
+        width = 0.20
+
+        plt.figure(figsize=(max(10, len(neuron_counts) * 1.8), 6))
 
         for impl in impl_order:
-            build_values = []
-            build_errors = []
-            sim_values = []
-            sim_errors = []
+            building = []
+            building_err = []
+            simulation = []
+            simulation_err = []
 
             for n in neuron_counts:
                 row = lookup.get((impl, n))
 
                 if row is None:
-                    build_values.append(np.nan)
-                    build_errors.append(0.0)
-                    sim_values.append(np.nan)
-                    sim_errors.append(0.0)
+                    building.append(np.nan)
+                    building_err.append(0.0)
+                    simulation.append(np.nan)
+                    simulation_err.append(0.0)
                     continue
 
-                build_values.append(row["building_time_s_mean"])
-                build_errors.append(row["building_time_s_std"] or 0.0)
+                building.append(row["building_ms_per_neuron_mean"])
+                building_err.append(row["building_ms_per_neuron_std"] or 0.0)
 
-                sim_values.append(row["simulation_wall_time_s_mean"])
-                sim_errors.append(row["simulation_wall_time_s_std"] or 0.0)
+                simulation.append(row["simulation_ms_per_neuron_mean"])
+                simulation_err.append(row["simulation_ms_per_neuron_std"] or 0.0)
 
-            bar_labels.append(f"{nice_impl_name(impl)} building")
-            bar_values.append(build_values)
-            bar_errors.append(build_errors)
-
-            bar_labels.append(f"{nice_impl_name(impl)} simulation")
-            bar_values.append(sim_values)
-            bar_errors.append(sim_errors)
-
-        n_bars = len(bar_values)
-        width = 0.8 / n_bars
-
-        fig_width = max(10, len(neuron_counts) * 1.6)
-        fig_height = 6
-
-        plt.figure(figsize=(fig_width, fig_height))
-
-        for i in range(n_bars):
-            offset = (i - (n_bars - 1) / 2.0) * width
+            if impl == "builtin":
+                build_offset = -1.5 * width
+                sim_offset = -0.5 * width
+            else:
+                build_offset = 0.5 * width
+                sim_offset = 1.5 * width
 
             plt.bar(
-                x + offset,
-                bar_values[i],
+                x + build_offset,
+                building,
                 width,
-                yerr=bar_errors[i],
+                yerr=building_err,
                 capsize=3,
-                label=bar_labels[i],
+                label=f"{nice_impl_name(impl)} build/N",
             )
 
-        plt.ylabel("time [s]")
+            plt.bar(
+                x + sim_offset,
+                simulation,
+                width,
+                yerr=simulation_err,
+                capsize=3,
+                label=f"{nice_impl_name(impl)} sim/N",
+            )
+
+        plt.ylabel("time per neuron [ms/neuron]")
         plt.xlabel("number of neurons")
         plt.title(
-            f"{family.upper()} Brunel repeated average timing "
+            f"{family.upper()} Brunel repeated average timing summary "
             f"(built-in vs old NESTML)"
         )
 
@@ -370,19 +367,19 @@ def plot_summary(summary_rows, outdir):
 
 def print_summary_table(summary_rows):
     print()
-    print("=" * 120)
+    print("=" * 150)
     print("Repeated Brunel average timing summary: built-in vs old NESTML")
-    print("=" * 120)
+    print("=" * 150)
 
     print(
         f"{'family':<8} "
         f"{'impl':<12} "
         f"{'N':>8} "
         f"{'rep':>5} "
-        f"{'build[s]':>14} "
-        f"{'sim[s]':>14} "
-        f"{'build/N[ms]':>14} "
-        f"{'sim/N[ms]':>14} "
+        f"{'build/N':>14} "
+        f"{'sim/N':>14} "
+        f"{'exc/N':>14} "
+        f"{'inh/N':>14} "
         f"{'CV':>10}"
     )
 
@@ -390,15 +387,21 @@ def print_summary_table(summary_rows):
         cv = r["cv_mean"]
         cv_str = "nan" if cv is None else f"{cv:.4f}"
 
+        exc_n = r["exc_rate_hz_per_neuron_count_mean"]
+        inh_n = r["inh_rate_hz_per_neuron_count_mean"]
+
+        exc_n_str = "nan" if exc_n is None else f"{exc_n:.8f}"
+        inh_n_str = "nan" if inh_n is None else f"{inh_n:.8f}"
+
         print(
             f"{r['family']:<8} "
             f"{r['impl']:<12} "
             f"{r['actual_neurons']:>8} "
             f"{r['repeats']:>5} "
-            f"{r['building_time_s_mean']:>14.8f} "
-            f"{r['simulation_wall_time_s_mean']:>14.8f} "
             f"{r['building_ms_per_neuron_mean']:>14.8f} "
             f"{r['simulation_ms_per_neuron_mean']:>14.8f} "
+            f"{exc_n_str:>14} "
+            f"{inh_n_str:>14} "
             f"{cv_str:>10}"
         )
 
@@ -530,10 +533,10 @@ def main():
                     print(
                         f"Result: family={family}, impl={impl}, "
                         f"N={actual_neurons}, "
-                        f"build={stats['building_time_s']:.8f}s, "
-                        f"sim={stats['simulation_wall_time_s']:.8f}s, "
                         f"build/N={stats['building_ms_per_neuron']:.8f}ms, "
                         f"sim/N={stats['simulation_ms_per_neuron']:.8f}ms, "
+                        f"exc/N={stats['exc_rate_hz_per_neuron_count']:.8f}, "
+                        f"inh/N={stats['inh_rate_hz_per_neuron_count']:.8f}, "
                         f"CV={stats['cv']}"
                     )
 

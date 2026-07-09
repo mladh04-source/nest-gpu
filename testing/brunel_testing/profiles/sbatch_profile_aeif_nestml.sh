@@ -12,7 +12,7 @@ module --force purge
 
 ml Stages/2026 GCC OpenMPI CUDA GSL Python SciPy-Stack mpi4py CMake Autotools
 
-source /p/project1/cslns/natouf1/nest-gpu/install_numeric_odeint/bin/nestgpu_vars.sh
+source /p/project1/cslns/natouf1/nest-gpu/install/bin/nestgpu_vars.sh
 
 export LD_LIBRARY_PATH="$(python3 -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))'):${LD_LIBRARY_PATH}"
 export MPLBACKEND=Agg
