@@ -12,20 +12,22 @@
  *
  *  NEST GPU is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
- *
+ *  along with NEST GPU. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <config.h>
+
 #include <cmath>
 #include <iostream>
+
 #include <boost/numeric/odeint.hpp>
 #include <boost/numeric/odeint/external/thrust/thrust.hpp>
 #include <boost/ref.hpp>
+
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
@@ -36,20 +38,51 @@
 
 using namespace aeif_cond_alpha_alt_neuron_nestml_ns;
 
+
 namespace
 {
 
 typedef float value_type;
+
 typedef thrust::device_vector<value_type> ode_state_type;
 
 
 /*
+ * new:
+ * The stepper type was previously declared locally inside Update().
+ * It is moved here so it can be used by a persistent workspace.
+ *
+ * Mathematical method remains unchanged:
+ * runge_kutta_dopri5 with thrust_algebra and thrust_operations.
+ */
+typedef boost::numeric::odeint::runge_kutta_dopri5<
+    ode_state_type,
+    value_type,
+    ode_state_type,
+    value_type,
+    boost::numeric::odeint::thrust_algebra,
+    boost::numeric::odeint::thrust_operations>
+    stepper_type;
+
+
+/*
+ * new:
+ * Type returned by make_controlled().
+ *
+ * The tolerance values are exactly the same as in the original integrate_adaptive() call.
+ */
+typedef decltype(
+    boost::numeric::odeint::make_controlled(
+        1.0e-5f,
+        1.0e-4f,
+        stepper_type()))
+    controlled_stepper_type;
+
+
+/*
  * Copy scalar NEST GPU state variables into a compact Odeint state vector.
- *
  * NEST layout: var_arr[i_neuron * n_var + scalar_index]
- *
  * Odeint layout: ode_state[i_neuron * N_SCAL_VAR + scalar_index]
- *
  * Port variables are intentionally not copied.
  */
 __global__ void aeif_cond_alpha_alt_neuron_nestml_CopyNestToOdeState(
@@ -58,16 +91,24 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_CopyNestToOdeState(
     int n_var,
     float* ode_state)
 {
-  const int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
+  const int i_neuron =
+      threadIdx.x + blockIdx.x * blockDim.x;
 
   if (i_neuron >= n_node)
+  {
     return;
+  }
 
-  const float* src = var_arr + n_var * i_neuron;
-  float* dst = ode_state + N_SCAL_VAR * i_neuron;
+  const float* src =
+      var_arr + n_var * i_neuron;
+
+  float* dst =
+      ode_state + N_SCAL_VAR * i_neuron;
 
   for (int i = 0; i < N_SCAL_VAR; ++i)
+  {
     dst[i] = src[i];
+  }
 }
 
 
@@ -81,27 +122,37 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_CopyOdeStateToNest(
     int n_var,
     const float* ode_state)
 {
-  const int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
+  const int i_neuron =
+      threadIdx.x + blockIdx.x * blockDim.x;
 
   if (i_neuron >= n_node)
+  {
     return;
+  }
 
-  float* dst = var_arr + n_var * i_neuron;
-  const float* src = ode_state + N_SCAL_VAR * i_neuron;
+  float* dst =
+      var_arr + n_var * i_neuron;
+
+  const float* src =
+      ode_state + N_SCAL_VAR * i_neuron;
 
   for (int i = 0; i < N_SCAL_VAR; ++i)
+  {
     dst[i] = src[i];
+  }
 
   if (dst[i_refr_t] < 0.0f)
+  {
     dst[i_refr_t] = 0.0f;
+  }
 }
 
 
 /*
  * Device functor for the right-hand side of the ODE system.
- *
  * Odeint calls AeifCondAlphaAltOdeintSystem on the host.
  * That system function launches this Thrust functor on the GPU.
+ * The mathematical equations in this functor are unchanged.
  */
 struct AeifCondAlphaAltDerivativeFunctor
 {
@@ -113,25 +164,52 @@ struct AeifCondAlphaAltDerivativeFunctor
   __host__ __device__
   void operator()(int i_neuron) const
   {
-    const float* y = x + i_neuron * N_SCAL_VAR;
-    float* dydt = dxdt + i_neuron * N_SCAL_VAR;
-    const float* p = param + i_neuron * param_stride;
+    const float* y =
+        x + i_neuron * N_SCAL_VAR;
 
-    const float V_m     = y[i_V_m];
-    const float w       = y[i_w];
-    const float refr_t  = y[i_refr_t];
-    const float g_exc   = y[i_g_exc];
-    const float g_exc_d = y[i_g_exc__d];
-    const float g_inh   = y[i_g_inh];
-    const float g_inh_d = y[i_g_inh__d];
+    float* dydt =
+        dxdt + i_neuron * N_SCAL_VAR;
+
+    const float* p =
+        param + i_neuron * param_stride;
+
+
+    const float V_m =
+        y[i_V_m];
+
+    const float w =
+        y[i_w];
+
+    const float refr_t =
+        y[i_refr_t];
+
+    const float g_exc =
+        y[i_g_exc];
+
+    const float g_exc_d =
+        y[i_g_exc__d];
+
+    const float g_inh =
+        y[i_g_inh];
+
+    const float g_inh_d =
+        y[i_g_inh__d];
+
 
     /*
      * Same voltage clamp idea as the original model.
      */
-    const float Vb = V_m < p[i_V_peak] ? V_m : p[i_V_peak];
+    const float Vb =
+        V_m < p[i_V_peak]
+            ? V_m
+            : p[i_V_peak];
 
-    const float tau_exc = p[i_tau_syn_exc];
-    const float tau_inh = p[i_tau_syn_inh];
+
+    const float tau_exc =
+        p[i_tau_syn_exc];
+
+    const float tau_inh =
+        p[i_tau_syn_inh];
 
 
     /*
@@ -156,41 +234,50 @@ struct AeifCondAlphaAltDerivativeFunctor
      * Adaptation current.
      */
     dydt[i_w] =
-        p[i_a] * ((Vb - p[i_E_L]) / p[i_tau_w])
+        p[i_a]
+        * ((Vb - p[i_E_L]) / p[i_tau_w])
         - w / p[i_tau_w];
 
 
     if (refr_t > 0.0f)
     {
       /*
-       * Refractory branch:
-       * V_m is frozen, refr_t decreases, w still evolves.
+       * Refractory branch: V_m is frozen, refr_t decreases, w still evolves.
        */
-      dydt[i_V_m]    = 0.0f;
-      dydt[i_refr_t] = -1.0f;
+      dydt[i_V_m] =
+          0.0f;
+
+      dydt[i_refr_t] =
+          -1.0f;
     }
     else
     {
       /*
-       * Normal branch:
-       * V_m and w evolve, refr_t remains zero.
+       * Normal branch: V_m and w evolve, refr_t remains zero.
        */
       dydt[i_V_m] =
-        (
-          p[i_Delta_T] * p[i_g_L]
-            * expf((Vb - p[i_V_th]) / p[i_Delta_T])
-          + p[i_E_L] * p[i_g_L]
-          + p[i_E_exc] * g_exc
-          + p[i_E_inh] * g_inh
-          + p[i_I_e]
-          + p[i_I_stim]
-          - p[i_g_L] * Vb
-          - g_exc * Vb
-          - g_inh * Vb
-          - w
-        ) / p[i_C_m];
+          (
+            p[i_Delta_T]
+            * p[i_g_L]
+            * expf(
+                (Vb - p[i_V_th])
+                / p[i_Delta_T])
 
-      dydt[i_refr_t] = 0.0f;
+            + p[i_E_L] * p[i_g_L]
+            + p[i_E_exc] * g_exc
+            + p[i_E_inh] * g_inh
+            + p[i_I_e]
+            + p[i_I_stim]
+
+            - p[i_g_L] * Vb
+            - g_exc * Vb
+            - g_inh * Vb
+            - w
+          )
+          / p[i_C_m];
+
+      dydt[i_refr_t] =
+          0.0f;
     }
   }
 };
@@ -199,8 +286,8 @@ struct AeifCondAlphaAltDerivativeFunctor
 /*
  * Boost.Odeint system function.
  *
- * x : compact scalar state vector on GPU
- * dxdt : compact derivative vector on GPU
+ * x: compact scalar state vector on GPU
+ * dxdt: compact derivative vector on GPU
  */
 struct AeifCondAlphaAltOdeintSystem
 {
@@ -208,27 +295,77 @@ struct AeifCondAlphaAltOdeintSystem
   int param_stride;
   int n_neuron;
 
-  void operator()(const ode_state_type& x,
-                  ode_state_type& dxdt,
-                  const value_type /*t*/) const
+  void operator()(
+      const ode_state_type& x,
+      ode_state_type& dxdt,
+      const value_type /*t*/) const
   {
-    const float* x_ptr = thrust::raw_pointer_cast(x.data());
-    float* dxdt_ptr = thrust::raw_pointer_cast(dxdt.data());
+    const float* x_ptr =
+        thrust::raw_pointer_cast(x.data());
+
+    float* dxdt_ptr =
+        thrust::raw_pointer_cast(dxdt.data());
+
 
     thrust::counting_iterator<int> begin(0);
+
     thrust::counting_iterator<int> end(n_neuron);
 
-    AeifCondAlphaAltDerivativeFunctor functor;
-    functor.x = x_ptr;
-    functor.dxdt = dxdt_ptr;
-    functor.param = param;
-    functor.param_stride = param_stride;
 
-    thrust::for_each(thrust::device, begin, end, functor);
+    AeifCondAlphaAltDerivativeFunctor functor;
+
+    functor.x =
+        x_ptr;
+
+    functor.dxdt =
+        dxdt_ptr;
+
+    functor.param =
+        param;
+
+    functor.param_stride =
+        param_stride;
+
+
+    /*
+     * Kept unchanged to preserve the same execution and equations.
+     */
+    thrust::for_each(
+        thrust::device,
+        begin,
+        end,
+        functor);
   }
 };
 
 } // anonymous namespace
+
+
+/*
+ * new:
+ * Persistent Boost.Odeint workspace.
+ *
+ * Previously, make_controlled() was executed during every Update().
+ * That created a new controlled stepper and new temporary device vectors.
+ *
+ *Important:
+ * Now the controlled stepper is created once in Init() and reused.
+ *
+ * Solver and tolerance values are unchanged.
+ */
+struct aeif_cond_alpha_alt_neuron_nestml::OdeintWorkspace
+{
+  controlled_stepper_type controlled_stepper;
+
+  OdeintWorkspace()
+    : controlled_stepper(
+          boost::numeric::odeint::make_controlled(
+              1.0e-5f,
+              1.0e-4f,
+              stepper_type()))
+  {
+  }
+};
 
 
 /*
@@ -246,13 +383,19 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_PreUpdate(
     int n_var,
     int n_param)
 {
-  const int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
+  const int i_neuron =
+      threadIdx.x + blockIdx.x * blockDim.x;
 
   if (i_neuron >= n_node)
+  {
     return;
+  }
 
-  float* var   = var_arr   + n_var   * i_neuron;
-  float* param = param_arr + n_param * i_neuron;
+  float* var =
+      var_arr + n_var * i_neuron;
+
+  float* param =
+      param_arr + n_param * i_neuron;
 
 
   /*
@@ -261,11 +404,13 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_PreUpdate(
   if (var[N_SCAL_VAR + i_exc_spikes] != 0.0f)
   {
     var[i_g_exc__d] +=
-        (0.001f * var[N_SCAL_VAR + i_exc_spikes])
+        (0.001f
+         * var[N_SCAL_VAR + i_exc_spikes])
         * (M_E / param[i_tau_syn_exc])
         * 1000.0f;
 
-    var[N_SCAL_VAR + i_exc_spikes] = 0.0f;
+    var[N_SCAL_VAR + i_exc_spikes] =
+        0.0f;
   }
 
 
@@ -275,11 +420,13 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_PreUpdate(
   if (var[N_SCAL_VAR + i_inh_spikes] != 0.0f)
   {
     var[i_g_inh__d] +=
-        (0.001f * var[N_SCAL_VAR + i_inh_spikes])
+        (0.001f
+         * var[N_SCAL_VAR + i_inh_spikes])
         * (M_E / param[i_tau_syn_inh])
         * 1000.0f;
 
-    var[N_SCAL_VAR + i_inh_spikes] = 0.0f;
+    var[N_SCAL_VAR + i_inh_spikes] =
+        0.0f;
   }
 }
 
@@ -289,7 +436,8 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_PreUpdate(
  *
  * Handles only threshold, reset and spike emission after ODE integration.
  *
- * (onReceive is not handled here anymore, because it is now handled before integration in aeif_cond_alpha_alt_neuron_nestml_PreUpdate()).
+ * onReceive is not handled here because it is handled before integration
+ * in aeif_cond_alpha_alt_neuron_nestml_PreUpdate().
  */
 __global__ void aeif_cond_alpha_alt_neuron_nestml_PostUpdate(
     int n_node,
@@ -299,25 +447,40 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_PostUpdate(
     int n_var,
     int n_param)
 {
-  const int i_neuron = threadIdx.x + blockIdx.x * blockDim.x;
+  const int i_neuron =
+      threadIdx.x + blockIdx.x * blockDim.x;
 
   if (i_neuron >= n_node)
+  {
     return;
+  }
 
-  float* var   = var_arr   + n_var   * i_neuron;
-  float* param = param_arr + n_param * i_neuron;
+  float* var =
+      var_arr + n_var * i_neuron;
+
+  float* param =
+      param_arr + n_param * i_neuron;
 
 
   /*
    * onCondition: threshold / reset / spike
    */
-  if (var[i_refr_t] <= 0.0f && var[i_V_m] >= param[i_V_peak])
+  if (
+      var[i_refr_t] <= 0.0f
+      && var[i_V_m] >= param[i_V_peak])
   {
-    var[i_refr_t] = param[i_refr_T];
-    var[i_V_m]    = param[i_V_reset];
-    var[i_w]     += param[i_b];
+    var[i_refr_t] =
+        param[i_refr_T];
 
-    PushSpike(i_node_0 + i_neuron, 1.0f);
+    var[i_V_m] =
+        param[i_V_reset];
+
+    var[i_w] +=
+        param[i_b];
+
+    PushSpike(
+        i_node_0 + i_neuron,
+        1.0f);
   }
 
 
@@ -325,173 +488,416 @@ __global__ void aeif_cond_alpha_alt_neuron_nestml_PostUpdate(
    * Safety reset of input ports.
    * Normally they are already reset in PreUpdate.
    */
-  var[N_SCAL_VAR + i_exc_spikes] = 0.0f;
-  var[N_SCAL_VAR + i_inh_spikes] = 0.0f;
+  var[N_SCAL_VAR + i_exc_spikes] =
+      0.0f;
+
+  var[N_SCAL_VAR + i_inh_spikes] =
+      0.0f;
 }
 
 
 
 // Class methods
 
-aeif_cond_alpha_alt_neuron_nestml::~aeif_cond_alpha_alt_neuron_nestml()
+aeif_cond_alpha_alt_neuron_nestml::
+~aeif_cond_alpha_alt_neuron_nestml()
 {
   Free();
 }
 
 
-int aeif_cond_alpha_alt_neuron_nestml::Init(int i_node_0,
-                                            int n_node,
-                                            int /*n_port*/,
-                                            int i_group,
-                                            unsigned long long* seed)
+int aeif_cond_alpha_alt_neuron_nestml::Init(
+    int i_node_0,
+    int n_node,
+    int /*n_port*/,
+    int i_group,
+    unsigned long long* seed)
 {
-  BaseNeuron::Init(i_node_0, n_node, 2 /*n_port*/, i_group, seed);
+  BaseNeuron::Init(
+      i_node_0,
+      n_node,
+      2 /*n_port*/,
+      i_group,
+      seed);
 
-  node_type_ = i_aeif_cond_alpha_alt_neuron_nestml_model;
+
+  node_type_ =
+      i_aeif_cond_alpha_alt_neuron_nestml_model;
 
 
   /*
    * State variables
    */
-  n_scal_var_ = N_SCAL_VAR;
-  n_port_var_ = N_PORT_VAR;
-  n_var_      = n_scal_var_ + n_port_var_;
+  n_scal_var_ =
+      N_SCAL_VAR;
+
+  n_port_var_ =
+      N_PORT_VAR;
+
+  n_var_ =
+      n_scal_var_ + n_port_var_;
 
 
   /*
    * Parameters
    */
-  n_scal_param_ = N_SCAL_PARAM;
-  n_param_      = n_scal_param_;
+  n_scal_param_ =
+      N_SCAL_PARAM;
+
+  n_param_ =
+      n_scal_param_;
 
 
   AllocParamArr();
   AllocVarArr();
 
 
-  scal_var_name_   = aeif_cond_alpha_alt_neuron_nestml_scal_var_name;
-  scal_param_name_ = aeif_cond_alpha_alt_neuron_nestml_scal_param_name;
-  port_var_name_   = aeif_cond_alpha_alt_neuron_nestml_port_var_name;
+  scal_var_name_ =
+      aeif_cond_alpha_alt_neuron_nestml_scal_var_name;
+
+  scal_param_name_ =
+      aeif_cond_alpha_alt_neuron_nestml_scal_param_name;
+
+  port_var_name_ =
+      aeif_cond_alpha_alt_neuron_nestml_port_var_name;
 
 
   /*
-   * Parameters
+   * Default parameters
    */
-  SetScalParam(0, n_node, "C_m",         281.0);    // pF
-  SetScalParam(0, n_node, "refr_T",        2.0);    // ms
-  SetScalParam(0, n_node, "V_reset",     -60.0);    // mV
-  SetScalParam(0, n_node, "g_L",          30.0);    // nS
-  SetScalParam(0, n_node, "E_L",         -70.6);    // mV
-  SetScalParam(0, n_node, "a",             4.0);    // nS
-  SetScalParam(0, n_node, "b",            80.5);    // pA
-  SetScalParam(0, n_node, "Delta_T",       2.0);    // mV
-  SetScalParam(0, n_node, "tau_w",       144.0);    // ms
-  SetScalParam(0, n_node, "V_th",        -50.4);    // mV
-  SetScalParam(0, n_node, "V_peak",        0.0);    // mV
-  SetScalParam(0, n_node, "tau_syn_exc",   0.2);    // ms
-  SetScalParam(0, n_node, "tau_syn_inh",   2.0);    // ms
-  SetScalParam(0, n_node, "E_exc",         0.0);    // mV
-  SetScalParam(0, n_node, "E_inh",       -85.0);    // mV
-  SetScalParam(0, n_node, "I_e",           0.0);    // pA
-  SetScalParam(0, n_node, "I_stim",        0.0);    // pA
+  SetScalParam(
+      0,
+      n_node,
+      "C_m",
+      281.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "refr_T",
+      2.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "V_reset",
+      -60.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "g_L",
+      30.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "E_L",
+      -70.6);
+
+  SetScalParam(
+      0,
+      n_node,
+      "a",
+      4.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "b",
+      80.5);
+
+  SetScalParam(
+      0,
+      n_node,
+      "Delta_T",
+      2.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "tau_w",
+      144.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "V_th",
+      -50.4);
+
+  SetScalParam(
+      0,
+      n_node,
+      "V_peak",
+      0.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "tau_syn_exc",
+      0.2);
+
+  SetScalParam(
+      0,
+      n_node,
+      "tau_syn_inh",
+      2.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "E_exc",
+      0.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "E_inh",
+      -85.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "I_e",
+      0.0);
+
+  SetScalParam(
+      0,
+      n_node,
+      "I_stim",
+      0.0);
 
 
   /*
-   * State variables
+   * Initial state variables
    */
-  SetScalVar(0, n_node, "V_m",       *GetScalParam(0, n_node, "E_L"));
-  SetScalVar(0, n_node, "w",          0.0);
-  SetScalVar(0, n_node, "refr_t",     0.0);
-  SetScalVar(0, n_node, "g_exc",      0.0);
-  SetScalVar(0, n_node, "g_exc__d",   0.0);
-  SetScalVar(0, n_node, "g_inh",      0.0);
-  SetScalVar(0, n_node, "g_inh__d",   0.0);
+  SetScalVar(
+      0,
+      n_node,
+      "V_m",
+      *GetScalParam(
+          0,
+          n_node,
+          "E_L"));
+
+  SetScalVar(
+      0,
+      n_node,
+      "w",
+      0.0);
+
+  SetScalVar(
+      0,
+      n_node,
+      "refr_t",
+      0.0);
+
+  SetScalVar(
+      0,
+      n_node,
+      "g_exc",
+      0.0);
+
+  SetScalVar(
+      0,
+      n_node,
+      "g_exc__d",
+      0.0);
+
+  SetScalVar(
+      0,
+      n_node,
+      "g_inh",
+      0.0);
+
+  SetScalVar(
+      0,
+      n_node,
+      "g_inh__d",
+      0.0);
 
 
   /*
-   * Compact state buffer for Boost.Odeint's built-in RK45 / Dopri5 stepper.
+   * Compact state buffer for Boost.Odeint.
    *
    * Size = n_node_ * N_SCAL_VAR
    */
-  ode_state_ = new thrust::device_vector<float>(
-      static_cast<size_t>(n_node_) * static_cast<size_t>(N_SCAL_VAR));
+  ode_state_ =
+      new thrust::device_vector<float>(
+          static_cast<size_t>(n_node_)
+          * static_cast<size_t>(N_SCAL_VAR));
+
+
+  /*
+   * new:
+   * Construct the controlled stepper only once.
+   *
+   * Previously it was constructed in every Update().
+   */
+  odeint_workspace_ =
+      new OdeintWorkspace();
+
+
+  /*
+   * new:
+   * Preallocate all temporary states belonging to controlled_runge_kutta.
+   *
+   * This allocates these device vectors once instead of allowing them
+   * to be repeatedly created while the simulation is running.
+   */
+  odeint_workspace_
+      ->controlled_stepper
+      .adjust_size(*ode_state_);
+
+
+  /*
+   * new:
+   * The FSAL controlled stepper's adjust_size() does not resize every
+   * temporary state inside the underlying Dormand-Prince stepper.
+   *
+   * Therefore resize the underlying stepper explicitly as well.
+   */
+  odeint_workspace_
+      ->controlled_stepper
+      .stepper()
+      .adjust_size(*ode_state_);
 
 
   /*
    * Multiplication factor of input signal is always 1 for all nodes.
    */
-  float input_weight = 1.0f;
+  float input_weight =
+      1.0f;
 
-  gpuErrchk(cudaMalloc(&port_weight_arr_, sizeof(float)));
 
-  gpuErrchk(cudaMemcpy(port_weight_arr_,
-                       &input_weight,
-                       sizeof(float),
-                       cudaMemcpyHostToDevice));
+  gpuErrchk(
+      cudaMalloc(
+          &port_weight_arr_,
+          sizeof(float)));
 
-  port_weight_arr_step_  = 0;
-  port_weight_port_step_ = 0;
+
+  gpuErrchk(
+      cudaMemcpy(
+          port_weight_arr_,
+          &input_weight,
+          sizeof(float),
+          cudaMemcpyHostToDevice));
+
+
+  port_weight_arr_step_ =
+      0;
+
+  port_weight_port_step_ =
+      0;
 
 
   /*
    * Process the input spikes.
    */
-  port_input_arr_       = GetVarArr() + n_scal_var_ + GetPortVarIdx("exc_spikes");
-  port_input_arr_step_  = n_var_;
-  port_input_port_step_ = 1;
+  port_input_arr_ =
+      GetVarArr()
+      + n_scal_var_
+      + GetPortVarIdx("exc_spikes");
+
+  port_input_arr_step_ =
+      n_var_;
+
+  port_input_port_step_ =
+      1;
 
 
   return 0;
 }
 
 
-int aeif_cond_alpha_alt_neuron_nestml::Calibrate(double /*time_min*/,
-                                                 float /*time_resolution*/)
+int aeif_cond_alpha_alt_neuron_nestml::Calibrate(
+    double /*time_min*/,
+    float time_resolution)
 {
   /*
-   * Boost.Odeint path does not need old RK5 calibration.
+   * new:
+   * Store the same time resolution supplied by NEST GPU.
+   *
+   * No mathematical value is changed. The value is only cached on the
+   * host to avoid cudaMemcpyFromSymbol() in every Update().
    */
+  time_resolution_ =
+      time_resolution;
+
+
   return 0;
 }
 
 
-int aeif_cond_alpha_alt_neuron_nestml::Update(long long /*it*/, double t1)
+int aeif_cond_alpha_alt_neuron_nestml::Update(
+    long long /*it*/,
+    double t1)
 {
-  float dt = 0.0f;
-
-  gpuErrchk(cudaMemcpyFromSymbol(&dt,
-                                 NESTGPUTimeResolution,
-                                 sizeof(float)));
-
-  const float t0    = static_cast<float>(t1) - dt;
-  const float t_end = static_cast<float>(t1);
+  /*
+   * new:
+   * Use the time resolution cached in Calibrate().
+   */
+  float dt =
+      time_resolution_;
 
 
   /*
-   * Important:
+   * new:
+   * Safety fallback.
    *
+   * Under normal operation Calibrate() has already been called.
+   * If that did not happen, preserve the old behavior and read the
+   * constant CUDA symbol once.
+   */
+  if (dt <= 0.0f)
+  {
+    gpuErrchk(
+        cudaMemcpyFromSymbol(
+            &dt,
+            NESTGPUTimeResolution,
+            sizeof(float)));
+
+    time_resolution_ =
+        dt;
+  }
+
+
+  const float t0 =
+      static_cast<float>(t1) - dt;
+
+  const float t_end =
+      static_cast<float>(t1);
+
+
+  /*
+   * Keep the original CUDA launch configuration unchanged.
+   */
+  const int threads_per_block =
+      1024;
+
+  const int blocks =
+      (n_node_ + threads_per_block - 1)
+      / threads_per_block;
+
+
+  /*
    * Apply incoming spikes before ODE integration.
-   *
-   * This makes the event timing closer to built-in aeif_cond_alpha,
-   * where incoming conductance increments are visible to the RK solver
-   * during the current integration interval.
    */
   aeif_cond_alpha_alt_neuron_nestml_PreUpdate
-      <<< (n_node_ + 1023) / 1024, 1024 >>>(
+      <<<blocks, threads_per_block>>>(
           n_node_,
           var_arr_,
           param_arr_,
           n_var_,
-           gpuErrchk(cudaMemcpyFromSymbol(&dt,
-                                 NESTGPUTimeResolution,
-                                 sizeof(float)));
+          n_param_);
 
-  const float t0    = static_cast n_param_);
-
-  gpuErrchk(cudaPeekAtLastError());
+  gpuErrchk(
+      cudaPeekAtLastError());
 
 
-  float* ode_state_ptr = thrust::raw_pointer_cast(ode_state_->data());
+  float* ode_state_ptr =
+      thrust::raw_pointer_cast(
+          ode_state_->data());
 
 
   /*
@@ -501,46 +907,65 @@ int aeif_cond_alpha_alt_neuron_nestml::Update(long long /*it*/, double t1)
    * g_exc__d / g_inh__d before integration starts.
    */
   aeif_cond_alpha_alt_neuron_nestml_CopyNestToOdeState
-      <<< (n_node_ + 1023) / 1024, 1024 >>>(
+      <<<blocks, threads_per_block>>>(
           n_node_,
           var_arr_,
           n_var_,
           ode_state_ptr);
 
-  gpuErrchk(cudaPeekAtLastError());
-
-
-  /*
-   * Built-in Boost.Odeint Dormand-Prince RK45 stepper.
-   *
-   * This replaces the old separate solver.
-   *
-   * Built-in aeif_cond_alpha uses h0_rel = 1.0e-2 by default.
-   * Therefore we use dt * 1.0e-2 as initial Odeint step size instead of dt.
-   */
-  typedef boost::numeric::odeint::runge_kutta_dopri5<
-      ode_state_type,
-      value_type,
-      ode_state_type,
-      value_type,
-      boost::numeric::odeint::thrust_algebra,
-      boost::numeric::odeint::thrust_operations> stepper_type;
+  gpuErrchk(
+      cudaPeekAtLastError());
 
 
   AeifCondAlphaAltOdeintSystem system;
-  system.param        = param_arr_;
-  system.param_stride = n_param_;
-  system.n_neuron     = n_node_;
+
+  system.param =
+      param_arr_;
+
+  system.param_stride =
+      n_param_;
+
+  system.n_neuron =
+      n_node_;
 
 
-  const float odeint_h0 = dt * 1.0e-2f;
+  /*
+   * Same initial Odeint step size as the original implementation.
+   *
+   * The adaptive step size is intentionally not retained between
+   * different NEST GPU Update() calls.
+   */
+  const float odeint_h0 =
+      dt * 1.0e-2f;
 
 
+  /*
+   * new:
+   * Dormand-Prince is an FSAL method and stores the previous derivative.
+   *
+   * The original implementation constructed a new stepper in every
+   * Update(), so its FSAL state was empty at the beginning of each
+   * integration interval.
+   *
+   * Calling reset() reproduces that same state while retaining the
+   * already allocated temporary vectors.
+   */
+  odeint_workspace_
+      ->controlled_stepper
+      .reset();
+
+
+  /*
+   * new:
+   * Reuse the persistent controlled stepper through boost::ref().
+   *
+   * boost::ref() prevents integrate_adaptive() from creating a complete
+   * copy of the controlled stepper and its device vectors.
+   */
   boost::numeric::odeint::integrate_adaptive(
-      boost::numeric::odeint::make_controlled(
-          1.0e-5f,  // absolute tolerance
-          1.0e-4f,  // relative tolerance
-          stepper_type()),
+      boost::ref(
+          odeint_workspace_
+              ->controlled_stepper),
       boost::ref(system),
       *ode_state_,
       t0,
@@ -549,24 +974,26 @@ int aeif_cond_alpha_alt_neuron_nestml::Update(long long /*it*/, double t1)
 
 
   /*
-   * Copy integrated scalar state back to normal NEST GPU state array.
+   * Copy integrated scalar state back to the normal NEST GPU state.
+   *
    * Port variables are not touched here.
    */
   aeif_cond_alpha_alt_neuron_nestml_CopyOdeStateToNest
-      <<< (n_node_ + 1023) / 1024, 1024 >>>(
+      <<<blocks, threads_per_block>>>(
           n_node_,
           var_arr_,
           n_var_,
           ode_state_ptr);
 
-  gpuErrchk(cudaPeekAtLastError());
+  gpuErrchk(
+      cudaPeekAtLastError());
 
 
   /*
    * Handle threshold, reset and PushSpike after ODE integration.
    */
   aeif_cond_alpha_alt_neuron_nestml_PostUpdate
-      <<< (n_node_ + 1023) / 1024, 1024 >>>(
+      <<<blocks, threads_per_block>>>(
           n_node_,
           i_node_0_,
           var_arr_,
@@ -574,7 +1001,8 @@ int aeif_cond_alpha_alt_neuron_nestml::Update(long long /*it*/, double t1)
           n_var_,
           n_param_);
 
-  gpuErrchk(cudaPeekAtLastError());
+  gpuErrchk(
+      cudaPeekAtLastError());
 
 
   return 0;
@@ -583,11 +1011,26 @@ int aeif_cond_alpha_alt_neuron_nestml::Update(long long /*it*/, double t1)
 
 int aeif_cond_alpha_alt_neuron_nestml::Free()
 {
+  /*
+   * new:
+   * Release the persistent controlled stepper and its temporary
+   * device vectors.
+   */
+  delete odeint_workspace_;
+
+  odeint_workspace_ =
+      nullptr;
+
+
   delete ode_state_;
-  ode_state_ = nullptr;
+
+  ode_state_ =
+      nullptr;
+
 
   FreeVarArr();
   FreeParamArr();
+
 
   return 0;
 }

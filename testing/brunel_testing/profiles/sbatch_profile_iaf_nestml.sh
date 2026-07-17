@@ -44,12 +44,12 @@ do
 
   mkdir -p "$RUN_DIR"
 
+  # NEW: The automatic --stats=true output was removed because its table format truncates long CUDA kernel names.
   srun "$NSYS" profile \
     --trace=cuda,nvtx,osrt \
     --cuda-memory-usage=true \
     --sample=none \
     --cpuctxsw=none \
-    --stats=true \
     --force-overwrite=true \
     --output="$OUT_BASE" \
     python3 -u /p/project1/cslns/natouf1/test_brunel_compare_overlay.py \
@@ -59,4 +59,27 @@ do
       --n-neurons "$N" \
       --sim-time 1000.0 \
       --outdir "$RUN_DIR"
+
+  # NEW: Generate each Nsight Systems statistics report separately after profiling has finished.
+  for REPORT in \
+    nvtx_sum \
+    osrt_sum \
+    cuda_api_sum \
+    cuda_gpu_kern_sum \
+    cuda_gpu_mem_time_sum \
+    cuda_gpu_mem_size_sum
+  do
+    echo "========================================"
+    echo "${REPORT}: ${N} neurons"
+    echo "========================================"
+
+    # NEW: CSV format preserves the complete report fields, including full CUDA kernel names.
+    # NEW: tee writes the report both to the Slurm output and to a separate CSV file.
+    "$NSYS" stats \
+      --quiet \
+      --report "$REPORT" \
+      --format csv \
+      "${OUT_BASE}.nsys-rep" \
+      | tee "${RUN_DIR}/iaf_nestml_${N}_${REPORT}.csv"
+  done
 done

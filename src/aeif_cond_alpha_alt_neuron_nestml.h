@@ -12,12 +12,11 @@
  *
  *  NEST GPU is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with NEST GPU.  If not, see <http://www.gnu.org/licenses/>.
- *
+ *  along with NEST GPU. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef AEIF_COND_ALPHA_ALT_NEURON_NESTML_H
@@ -25,7 +24,9 @@
 
 #include <iostream>
 #include <string>
+
 #include <thrust/device_vector.h>
+
 #include "cuda_error.h"
 #include "node_group.h"
 #include "base_neuron.h"
@@ -38,7 +39,8 @@ extern __constant__ float NESTGPUTimeResolution;
 namespace aeif_cond_alpha_alt_neuron_nestml_ns
 {
 
-enum ScalVarIndexes {
+enum ScalVarIndexes
+{
   i_V_m,
   i_w,
   i_refr_t,
@@ -49,7 +51,8 @@ enum ScalVarIndexes {
   N_SCAL_VAR
 };
 
-enum ScalParamIndexes {
+enum ScalParamIndexes
+{
   i_C_m,
   i_refr_T,
   i_V_reset,
@@ -70,13 +73,16 @@ enum ScalParamIndexes {
   N_SCAL_PARAM
 };
 
-enum PortVarIndexes {
+enum PortVarIndexes
+{
   i_exc_spikes,
   i_inh_spikes,
   N_PORT_VAR
 };
 
-const std::string aeif_cond_alpha_alt_neuron_nestml_scal_var_name[N_SCAL_VAR] = {
+const std::string
+aeif_cond_alpha_alt_neuron_nestml_scal_var_name[N_SCAL_VAR] =
+{
   "V_m",
   "w",
   "refr_t",
@@ -86,7 +92,9 @@ const std::string aeif_cond_alpha_alt_neuron_nestml_scal_var_name[N_SCAL_VAR] = 
   "g_inh__d",
 };
 
-const std::string aeif_cond_alpha_alt_neuron_nestml_scal_param_name[N_SCAL_PARAM] = {
+const std::string
+aeif_cond_alpha_alt_neuron_nestml_scal_param_name[N_SCAL_PARAM] =
+{
   "C_m",
   "refr_T",
   "V_reset",
@@ -106,7 +114,9 @@ const std::string aeif_cond_alpha_alt_neuron_nestml_scal_param_name[N_SCAL_PARAM
   "I_stim",
 };
 
-const std::string aeif_cond_alpha_alt_neuron_nestml_port_var_name[N_PORT_VAR] = {
+const std::string
+aeif_cond_alpha_alt_neuron_nestml_port_var_name[N_PORT_VAR] =
+{
   "exc_spikes",
   "inh_spikes",
 };
@@ -116,6 +126,31 @@ const std::string aeif_cond_alpha_alt_neuron_nestml_port_var_name[N_PORT_VAR] = 
 
 class aeif_cond_alpha_alt_neuron_nestml : public BaseNeuron
 {
+private:
+  /*
+   * new:
+   * Forward declaration of the persistent Boost.Odeint workspace.
+   * 
+   * Impo:
+   * The complete definition is located in the .cu file, so Boost.Odeint
+   * does not have to be included in this header.
+   */
+  struct OdeintWorkspace;
+
+  /*
+   * new:
+   * Persistent controlled stepper and its reusable temporary vectors.
+   */
+  OdeintWorkspace* odeint_workspace_ = nullptr;
+
+  /*
+   * new:
+   * Store the time resolution supplied to Calibrate().
+   *
+   * This avoids cudaMemcpyFromSymbol() during every Update().
+   */
+  float time_resolution_ = 0.0f;
+
 public:
   ~aeif_cond_alpha_alt_neuron_nestml();
 
@@ -128,12 +163,20 @@ public:
    */
   thrust::device_vector<float>* ode_state_ = nullptr;
 
-  int Init(int i_node_0, int n_neuron, int n_port, int i_group,
-           unsigned long long* seed = nullptr);
+  int Init(
+      int i_node_0,
+      int n_neuron,
+      int n_port,
+      int i_group,
+      unsigned long long* seed = nullptr);
 
-  int Calibrate(double time_min, float time_resolution);
+  int Calibrate(
+      double time_min,
+      float time_resolution);
 
-  int Update(long long it, double t1);
+  int Update(
+      long long it,
+      double t1);
 
   int Free();
 };
