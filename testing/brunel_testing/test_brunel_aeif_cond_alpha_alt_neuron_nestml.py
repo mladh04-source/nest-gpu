@@ -8,23 +8,31 @@ import numpy as np
 
 def compute_cv(spike_train):
     isi = np.diff(spike_train)
+
     if len(isi) == 0:
         return np.nan
+
     mean_isi = np.mean(isi)
+
     if mean_isi == 0:
         return np.nan
+
     std_isi = np.std(isi)
     return std_isi / mean_isi
 
 
 def compute_cv_for_neurons(spike_trains):
     cvs = []
+
     for spike_train in spike_trains:
-      if len(spike_train) > 2:
-        cv = compute_cv(spike_train)
-        if not np.isnan(cv):
-            cvs.append(cv)
+        if len(spike_train) > 2:
+            cv = compute_cv(spike_train)
+
+            if not np.isnan(cv):
+                cvs.append(cv)
+
     return np.mean(cvs) if cvs else np.nan
+
 
 def get_spike_times(neurons, n_exc, n_inh):
     spike_times = ngpu.GetRecSpikeTimes(neurons)
@@ -54,21 +62,38 @@ def get_spike_times(neurons, n_exc, n_inh):
                 inh_data.append([i_neur, t])
 
     cv_mean = compute_cv_for_neurons(all_trains)
+
     return exc_data, inh_data, exc_count, inh_count, cv_mean
 
 
-def raster_plot(exc_spikes, inh_spikes, outname="brunel_aeif_raster.png"):
+def raster_plot(
+    exc_spikes,
+    inh_spikes,
+    outname="brunel_aeif_raster.png",
+):
     plt.figure(figsize=(12, 7))
 
     if exc_spikes:
         exc_ids = [x[0] for x in exc_spikes]
         exc_times = [x[1] for x in exc_spikes]
-        plt.plot(exc_times, exc_ids, ".", markersize=2, label="exc")
+        plt.plot(
+            exc_times,
+            exc_ids,
+            ".",
+            markersize=2,
+            label="exc",
+        )
 
     if inh_spikes:
         inh_ids = [x[0] for x in inh_spikes]
         inh_times = [x[1] for x in inh_spikes]
-        plt.plot(inh_times, inh_ids, ".", markersize=2, label="inh")
+        plt.plot(
+            inh_times,
+            inh_ids,
+            ".",
+            markersize=2,
+            label="inh",
+        )
 
     plt.xlabel("time [ms]")
     plt.ylabel("neuron id")
@@ -77,15 +102,6 @@ def raster_plot(exc_spikes, inh_spikes, outname="brunel_aeif_raster.png"):
     plt.savefig(outname, dpi=200)
     plt.close()
 
-def randomize_initial_v_m(neurons, e_l, v_th, seed=1234):
-    rng = np.random.default_rng(seed)
-
-    n = len(neurons)
-    v_init = rng.uniform(e_l - 2.0, e_l + 6.0, size=n)
-
-    for i in range(n):
-        gid = neurons[i]
-        ngpu.SetStatus([gid], {"V_m": float(v_init[i])})
 
 def save_voltage_trace(record, outprefix="brunel_aeif"):
     data_list = ngpu.GetRecordData(record)
@@ -93,6 +109,7 @@ def save_voltage_trace(record, outprefix="brunel_aeif"):
     traces = []
 
     ncols = ngpu.GetRecordDataColumns(record)
+
     for col in range(1, ncols):
         traces.append([row[col] for row in data_list])
 
@@ -101,25 +118,52 @@ def save_voltage_trace(record, outprefix="brunel_aeif"):
             f"{outprefix}_vm_{i}.txt",
             np.column_stack((t, trace)),
         )
+
         plt.figure(figsize=(10, 5))
         plt.plot(t, trace)
         plt.xlabel("time [ms]")
         plt.ylabel("V_m")
         plt.tight_layout()
-        plt.savefig(f"{outprefix}_vm_{i}.png", dpi=200)
+        plt.savefig(
+            f"{outprefix}_vm_{i}.png",
+            dpi=200,
+        )
         plt.close()
 
 
-def compute_stats(exc_count, inh_count, n_exc, n_inh, sim_time, ce, ci):
-    rate_ex = exc_count / (n_exc * sim_time) * 1000.0 if n_exc > 0 else 0.0
-    rate_in = inh_count / (n_inh * sim_time) * 1000.0 if n_inh > 0 else 0.0
+def compute_stats(
+    exc_count,
+    inh_count,
+    n_exc,
+    n_inh,
+    sim_time,
+    ce,
+    ci,
+):
+    rate_ex = (
+        exc_count / (n_exc * sim_time) * 1000.0
+        if n_exc > 0
+        else 0.0
+    )
+
+    rate_in = (
+        inh_count / (n_inh * sim_time) * 1000.0
+        if n_inh > 0
+        else 0.0
+    )
 
     print("Balanced network simulation statistics:")
     print(f"Number of neurons : {n_exc + n_inh}")
     print(f"Excitatory indegree : {ce}")
     print(f"Inhibitory indegree : {ci}")
-    print(f"Approx. excitatory synapses : {int(ce * (n_exc + n_inh))}")
-    print(f"Approx. inhibitory synapses : {int(ci * (n_exc + n_inh))}")
+    print(
+        "Approx. excitatory synapses : "
+        f"{int(ce * (n_exc + n_inh))}"
+    )
+    print(
+        "Approx. inhibitory synapses : "
+        f"{int(ci * (n_exc + n_inh))}"
+    )
     print(f"Excitatory rate : {rate_ex:.2f} Hz")
     print(f"Inhibitory rate : {rate_in:.2f} Hz")
 
@@ -132,7 +176,10 @@ def main():
     total_requested = int(sys.argv[1])
     order = total_requested // 5
 
-    print("Building Brunel network for aeif_cond_alpha_alt_neuron_nestml ...")
+    print(
+        "Building Brunel network for "
+        "aeif_cond_alpha_alt_neuron_nestml ..."
+    )
 
     ngpu.SetKernelStatus("rnd_seed", 1234)
     ngpu.SetTimeResolution(0.1)
@@ -172,7 +219,11 @@ def main():
     refr_t = 2.0
     i_e = 0.0
 
-    neuron = ngpu.Create("aeif_cond_alpha_alt_neuron_nestml", n_neurons)
+    neuron = ngpu.Create(
+        "aeif_cond_alpha_alt_neuron_nestml",
+        n_neurons,
+    )
+
     exc_neuron = neuron[0:n_exc]
     inh_neuron = neuron[n_exc:n_neurons]
 
@@ -198,47 +249,123 @@ def main():
             "I_stim": 0.0,
         },
     )
-    
-    randomize_initial_v_m(neuron, e_l=e_l, v_th=v_th, seed=1234)
 
+    exc_conn_dict = {
+        "rule": "fixed_indegree",
+        "indegree": ce,
+    }
 
-    exc_conn_dict = {"rule": "fixed_indegree", "indegree": ce}
-    exc_syn_dict = {"weight": w_ex, "delay": 1.5, "receptor": 0}
-    ngpu.Connect(exc_neuron, neuron, exc_conn_dict, exc_syn_dict)
+    exc_syn_dict = {
+        "weight": w_ex,
+        "delay": 1.5,
+        "receptor": 0,
+    }
 
-    inh_conn_dict = {"rule": "fixed_indegree", "indegree": ci}
-    inh_syn_dict = {"weight": w_in, "delay": 1.5, "receptor": 1}
-    ngpu.Connect(inh_neuron, neuron, inh_conn_dict, inh_syn_dict)
+    ngpu.Connect(
+        exc_neuron,
+        neuron,
+        exc_conn_dict,
+        exc_syn_dict,
+    )
+
+    inh_conn_dict = {
+        "rule": "fixed_indegree",
+        "indegree": ci,
+    }
+
+    inh_syn_dict = {
+        "weight": w_in,
+        "delay": 1.5,
+        "receptor": 1,
+    }
+
+    ngpu.Connect(
+        inh_neuron,
+        neuron,
+        inh_conn_dict,
+        inh_syn_dict,
+    )
 
     pg = ngpu.Create("poisson_generator")
     ngpu.SetStatus(pg, "rate", poiss_rate)
 
-    pg_conn_dict = {"rule": "all_to_all"}
-    pg_syn_dict = {"weight": poiss_weight, "delay": poiss_delay, "receptor": 0}
-    ngpu.Connect(pg, neuron, pg_conn_dict, pg_syn_dict)
+    pg_conn_dict = {
+        "rule": "all_to_all",
+    }
+
+    pg_syn_dict = {
+        "weight": poiss_weight,
+        "delay": poiss_delay,
+        "receptor": 0,
+    }
+
+    ngpu.Connect(
+        pg,
+        neuron,
+        pg_conn_dict,
+        pg_syn_dict,
+    )
 
     ngpu.ActivateRecSpikeTimes(neuron, 2000)
 
     filename = "brunel_aeif_multimeter.dat"
+
     i_neuron_arr = [
         neuron[37],
         neuron[randrange(n_neurons)],
         neuron[n_neurons - 1],
     ]
+
     i_receptor_arr = [0, 0, 0]
     var_name_arr = ["V_m", "V_m", "V_m"]
 
-    record = ngpu.CreateRecord(filename, var_name_arr, i_neuron_arr, i_receptor_arr)
+    record = ngpu.CreateRecord(
+        filename,
+        var_name_arr,
+        i_neuron_arr,
+        i_receptor_arr,
+    )
 
     ngpu.Simulate(sim_time)
 
-    exc_data, inh_data, exc_count, inh_count, cv = get_spike_times(neuron, n_exc, n_inh)
+    (
+        exc_data,
+        inh_data,
+        exc_count,
+        inh_count,
+        cv,
+    ) = get_spike_times(
+        neuron,
+        n_exc,
+        n_inh,
+    )
 
-    raster_plot(exc_data, inh_data, outname="brunel_aeif_cond_alpha_alt_raster.png")
-    save_voltage_trace(record, outprefix="brunel_aeif_cond_alpha_alt")
+    raster_plot(
+        exc_data,
+        inh_data,
+        outname="brunel_aeif_cond_alpha_alt_raster.png",
+    )
 
-    compute_stats(exc_count, inh_count, n_exc, n_inh, sim_time, ce, ci)
-    print(f"CV : {cv:.4f}" if not np.isnan(cv) else "CV : nan")
+    save_voltage_trace(
+        record,
+        outprefix="brunel_aeif_cond_alpha_alt",
+    )
+
+    compute_stats(
+        exc_count,
+        inh_count,
+        n_exc,
+        n_inh,
+        sim_time,
+        ce,
+        ci,
+    )
+
+    print(
+        f"CV : {cv:.4f}"
+        if not np.isnan(cv)
+        else "CV : nan"
+    )
 
 
 if __name__ == "__main__":
