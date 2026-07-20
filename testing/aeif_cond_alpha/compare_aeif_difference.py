@@ -6,10 +6,10 @@ builtin_file = "/p/project1/cslns/natouf1/output_vm_aeif_builtin.txt"
 odeint_file = "/p/project1/cslns/natouf1/output_vm_aeif_odeint.txt"
 old_nestml_file = "/p/project1/cslns/natouf1/output_vm_aeif_old_nestml.txt"
 
-plot_file_odeint = "/p/project1/cslns/natouf1/comparison_plot_aeif_solver_with_diff.png"
+plot_file_odeint = "/p/project1/cslns/natouf1/aeif_single_neuron_current_odeint_comparison.png"
 diff_file_odeint = "/p/project1/cslns/natouf1/difference_vm_aeif_builtin_vs_odeint.txt"
 
-plot_file_old = "/p/project1/cslns/natouf1/comparison_plot_aeif_old_nestml_with_diff.png"
+plot_file_old = "/p/project1/cslns/natouf1/aeif_single_neuron_legacy_generated_comparison.png"
 diff_file_old = "/p/project1/cslns/natouf1/difference_vm_aeif_builtin_vs_old_nestml.txt"
 
 
@@ -20,7 +20,8 @@ def compare_and_plot(reference_file,
                      diff_header,
                      plot_title,
                      plot_file,
-                     diff_file):
+                     diff_file,
+                     compare_color):
     if not os.path.exists(reference_file):
         raise FileNotFoundError(f"Reference file not found: {reference_file}")
 
@@ -75,22 +76,28 @@ def compare_and_plot(reference_file,
         gridspec_kw={"height_ratios": [2, 1]}
     )
 
-    axes[0].plot(t_ref, V_ref, label="built-in aeif_cond_alpha")
-    axes[0].plot(t_ref, V_cmp, "--", label=compare_label)
-    axes[0].set_ylabel("V_m [mV]")
+    axes[0].plot(t_ref, V_ref, label="Native AEIF", color="tab:blue")
+    axes[0].plot(
+        t_ref,
+        V_cmp,
+        "--",
+        label=compare_label,
+        color=compare_color,
+    )
+    axes[0].set_ylabel("Membrane potential $V_m$ [mV]")
     axes[0].set_title(plot_title)
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
 
-    axes[1].plot(t_ref, diff, label=diff_label)
+    axes[1].plot(t_ref, diff, label=diff_label, color=compare_color)
     axes[1].axhline(0.0, linestyle=":", linewidth=1.0)
-    axes[1].set_xlabel("time [ms]")
-    axes[1].set_ylabel("diff [mV]")
+    axes[1].set_xlabel("Time [ms]")
+    axes[1].set_ylabel("Voltage difference [mV]")
     axes[1].legend()
     axes[1].grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(plot_file, dpi=200)
+    plt.savefig(plot_file, dpi=300, bbox_inches="tight")
     plt.close()
 
     print("Saved plot:", plot_file)
@@ -100,22 +107,24 @@ def compare_and_plot(reference_file,
 compare_and_plot(
     reference_file=builtin_file,
     compare_file=odeint_file,
-    compare_label="NESTML Odeint aeif_cond_alpha_alt",
-    diff_label="diff = Odeint - built-in",
+    compare_label="Current Odeint AEIF",
+    diff_label="Current Odeint AEIF - Native AEIF",
     diff_header="time_ms Vm_odeint_minus_builtin_mV",
-    plot_title="AEIF single neuron solver comparison",
+    plot_title="AEIF single-neuron comparison: Current Odeint vs Native",
     plot_file=plot_file_odeint,
-    diff_file=diff_file_odeint
+    diff_file=diff_file_odeint,
+    compare_color="tab:orange",
 )
 
 # old_nestml vs built-in
 compare_and_plot(
     reference_file=builtin_file,
     compare_file=old_nestml_file,
-    compare_label="old NESTML aeif_cond_alpha_alt",
-    diff_label="diff = old_nestml - built-in",
+    compare_label="Legacy generated AEIF",
+    diff_label="Legacy generated AEIF - Native AEIF",
     diff_header="time_ms Vm_old_nestml_minus_builtin_mV",
-    plot_title="AEIF single neuron old NESTML vs built-in",
+    plot_title="AEIF single-neuron comparison: Legacy generated vs Native",
     plot_file=plot_file_old,
-    diff_file=diff_file_old
+    diff_file=diff_file_old,
+    compare_color="tab:green",
 )

@@ -9,7 +9,7 @@ analytic_file = os.path.join(base_dir, "output_vm_analytic.txt")
 numeric_file  = os.path.join(base_dir, "output_vm_numeric.txt")
 builtin_file  = os.path.join(base_dir, "output_vm_builtin.txt")
 
-plot_file = os.path.join(base_dir, "comparison_plot_iaf_with_diff.png")
+plot_file = os.path.join(base_dir, "iaf_single_neuron_comparison.png")
 diff_file = os.path.join(base_dir, "difference_vm_iaf.txt")
 
 
@@ -70,23 +70,23 @@ def max_abs(diff):
     return np.max(np.abs(diff))
 
 
-print("IAF single neuron numerical comparison")
+print("IAF single-neuron numerical comparison")
 print("Compared points =", n)
 print()
 
-print("analytic - builtin:")
+print("Legacy generated IAF - Native IAF:")
 print("RMSE [mV]    =", rmse(diff_analytic_builtin))
 print("MAE [mV]     =", mae(diff_analytic_builtin))
 print("MAX_ABS [mV] =", max_abs(diff_analytic_builtin))
 print()
 
-print("numeric - builtin:")
+print("Current Odeint IAF - Native IAF:")
 print("RMSE [mV]    =", rmse(diff_numeric_builtin))
 print("MAE [mV]     =", mae(diff_numeric_builtin))
 print("MAX_ABS [mV] =", max_abs(diff_numeric_builtin))
 print()
 
-print("numeric - analytic:")
+print("Current Odeint IAF - Legacy generated IAF:")
 print("RMSE [mV]    =", rmse(diff_numeric_analytic))
 print("MAE [mV]     =", mae(diff_numeric_analytic))
 print("MAX_ABS [mV] =", max_abs(diff_numeric_analytic))
@@ -118,33 +118,49 @@ fig, axes = plt.subplots(
 )
 
 
-axes[0].plot(t, Vb, label="built-in iaf_psc_exp")
-axes[0].plot(t, Va, "--", label="NESTML analytic")
-axes[0].plot(t, Vn, ":", label="NESTML numeric odeint/thrust")
-axes[0].set_ylabel("V_m absolute [mV]")
-axes[0].set_title("IAF PSC EXP single neuron comparison")
+axes[0].plot(t, Vb, label="Native IAF", color="tab:blue")
+axes[0].plot(t, Va, "--", label="Legacy generated IAF", color="tab:green")
+axes[0].plot(t, Vn, ":", label="Current Odeint IAF", color="tab:orange")
+axes[0].set_ylabel("Membrane potential $V_m$ [mV]")
+axes[0].set_title("IAF single-neuron comparison")
 axes[0].legend()
 axes[0].grid(True, alpha=0.3)
 
 
-axes[1].plot(t, diff_analytic_builtin, label="analytic - built-in")
-axes[1].plot(t, diff_numeric_builtin, "--", label="numeric - built-in")
+axes[1].plot(
+    t,
+    diff_analytic_builtin,
+    label="Legacy generated IAF - Native IAF",
+    color="tab:green",
+)
+axes[1].plot(
+    t,
+    diff_numeric_builtin,
+    "--",
+    label="Current Odeint IAF - Native IAF",
+    color="tab:orange",
+)
 axes[1].axhline(0.0, linestyle=":", linewidth=1.0)
-axes[1].set_ylabel("diff [mV]")
+axes[1].set_ylabel("Voltage difference [mV]")
 axes[1].legend()
 axes[1].grid(True, alpha=0.3)
 
 
-axes[2].plot(t, diff_numeric_analytic, label="numeric - analytic")
+axes[2].plot(
+    t,
+    diff_numeric_analytic,
+    label="Current Odeint IAF - Legacy generated IAF",
+    color="tab:purple",
+)
 axes[2].axhline(0.0, linestyle=":", linewidth=1.0)
-axes[2].set_xlabel("time [ms]")
-axes[2].set_ylabel("diff [mV]")
+axes[2].set_xlabel("Time [ms]")
+axes[2].set_ylabel("Voltage difference [mV]")
 axes[2].legend()
 axes[2].grid(True, alpha=0.3)
 
 
 plt.tight_layout()
-plt.savefig(plot_file, dpi=200)
+plt.savefig(plot_file, dpi=300, bbox_inches="tight")
 plt.close()
 
 print("Saved plot:", plot_file)

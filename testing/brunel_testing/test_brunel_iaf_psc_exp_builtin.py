@@ -48,8 +48,8 @@ def get_spike_times(neurons, n_exc, n_inh):
     return e_data, i_data, e_count, i_count, mean_cv
 
 
-def raster_plot(e_st, i_st):
-    colors = ["#595289", "#af143c"]
+def raster_plot(e_st, i_st, n_neurons):
+    colors = ["tab:blue", "tab:orange"]
 
     e_ids = np.array([x[0] for x in e_st]) if len(e_st) else np.array([])
     e_times = np.array([x[1] for x in e_st]) if len(e_st) else np.array([])
@@ -58,15 +58,16 @@ def raster_plot(e_st, i_st):
 
     plt.figure(figsize=(12, 7))
     if len(e_times):
-        plt.plot(e_times, e_ids, ".", color=colors[0], label="exc")
+        plt.plot(e_times, e_ids, ".", color=colors[0], markersize=2, label="Excitatory")
     if len(i_times):
-        plt.plot(i_times, i_ids, ".", color=colors[1], label="inh")
+        plt.plot(i_times, i_ids, ".", color=colors[1], markersize=2, label="Inhibitory")
 
-    plt.xlabel("time [ms]")
-    plt.ylabel("neuron ID")
-    plt.legend()
+    plt.xlabel("Time [ms]")
+    plt.ylabel("Neuron ID")
+    plt.title(f"Native IAF (N = {n_neurons})")
+    plt.legend(loc="upper right")
     plt.tight_layout()
-    plt.savefig("brunel_iaf_builtin_raster.png", dpi=300)
+    plt.savefig("native_iaf_raster.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
@@ -122,7 +123,7 @@ def main():
     ngpu.SetKernelStatus("rnd_seed", 1234)
     ngpu.SetTimeResolution(0.1)
 
-    order = 1000
+    order = 1000 // 5
     n_exc = 4 * order
     n_inh = 1 * order
     n_neurons = n_exc + n_inh
@@ -192,7 +193,7 @@ def main():
     ngpu.Simulate(sim_time)
 
     e_data, i_data, ecount, icount, cv = get_spike_times(neuron, n_exc, n_inh)
-    raster_plot(e_data, i_data)
+    raster_plot(e_data, i_data, n_neurons)
     compute_stats(ecount, icount, n_exc, n_inh, sim_time, ce, ci, n_neurons)
     print(f"CV: {cv}")
 
@@ -204,26 +205,29 @@ def main():
 
     plt.figure()
     plt.plot(t, v1)
-    plt.xlabel("time [ms]")
-    plt.ylabel(record_var)
+    plt.xlabel("Time [ms]")
+    plt.ylabel("Membrane potential [mV]")
     plt.tight_layout()
-    plt.savefig("brunel_iaf_builtin_v1.png", dpi=200)
+    plt.title("Native IAF: example neuron 1")
+    plt.savefig("native_iaf_voltage_trace_1.png", dpi=300, bbox_inches="tight")
     plt.close()
 
     plt.figure()
     plt.plot(t, v2)
-    plt.xlabel("time [ms]")
-    plt.ylabel(record_var)
+    plt.xlabel("Time [ms]")
+    plt.ylabel("Membrane potential [mV]")
     plt.tight_layout()
-    plt.savefig("brunel_iaf_builtin_v2.png", dpi=200)
+    plt.title("Native IAF: example neuron 2")
+    plt.savefig("native_iaf_voltage_trace_2.png", dpi=300, bbox_inches="tight")
     plt.close()
 
     plt.figure()
     plt.plot(t, v3)
-    plt.xlabel("time [ms]")
-    plt.ylabel(record_var)
+    plt.xlabel("Time [ms]")
+    plt.ylabel("Membrane potential [mV]")
     plt.tight_layout()
-    plt.savefig("brunel_iaf_builtin_v3.png", dpi=200)
+    plt.title("Native IAF: example neuron 3")
+    plt.savefig("native_iaf_voltage_trace_3.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 

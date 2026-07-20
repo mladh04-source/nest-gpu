@@ -9,6 +9,27 @@ model_name = os.environ.get("MODEL_NAME", "aeif_cond_alpha")
 outfile = os.environ.get("OUTFILE", "output_vm.txt")
 plot_file = os.environ.get("PLOT_FILE", "plot.png")
 
+plot_label_override = os.environ.get("PLOT_LABEL")
+
+
+def get_plot_identity(model_name, outfile):
+    if plot_label_override:
+        return plot_label_override, "tab:orange"
+
+    name = model_name.lower()
+    output_name = outfile.lower()
+
+    if name == "aeif_cond_alpha":
+        return "Native AEIF", "tab:blue"
+
+    if "old" in name or "old" in output_name:
+        return "Legacy generated AEIF", "tab:green"
+
+    return "Current Odeint AEIF", "tab:orange"
+
+
+plot_label, plot_color = get_plot_identity(model_name, outfile)
+
 
 # Setup
 ngpu.SetTimeResolution(0.1)
@@ -173,17 +194,17 @@ except Exception as e:
 
 # Plot single model output
 plt.figure(figsize=(10, 6))
-plt.plot(t, V_m, "r-", label=model_name)
+plt.plot(t, V_m, color=plot_color, label=plot_label)
 
 for ts in spike_times:
     plt.axvline(ts, linestyle=":", linewidth=0.8)
 
-plt.xlabel("time [ms]")
-plt.ylabel(record_var)
-plt.title(model_name)
+plt.xlabel("Time [ms]")
+plt.ylabel("Membrane potential $V_m$ [mV]")
+plt.title(plot_label)
 plt.legend()
 plt.tight_layout()
-plt.savefig(plot_file)
+plt.savefig(plot_file, dpi=300, bbox_inches="tight")
 plt.close()
 
 print("Saved plot:", plot_file)

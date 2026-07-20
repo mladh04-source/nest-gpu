@@ -17,6 +17,6 @@ source /p/project1/cslns/natouf1/nest-gpu/install_numeric_odeint/bin/nestgpu_var
 export LD_LIBRARY_PATH="$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))"):${LD_LIBRARY_PATH}"
 
 # Number of neurons in the entire network
-N_NEURONS=12500
+N_NEURONS=1000
 
 python3 /p/project1/cslns/natouf1/test_brunel_iaf_psc_exp_neuron_nestml.py ${N_NEURONS}

@@ -57,28 +57,29 @@ def get_spike_times(neurons, n_exc, n_inh):
     return exc_data, inh_data, exc_count, inh_count, cv_mean
 
 
-def raster_plot(exc_spikes, inh_spikes, outname="brunel_iaf_raster.png"):
+def raster_plot(exc_spikes, inh_spikes, n_neurons, outname="current_odeint_iaf_raster.png"):
     plt.figure(figsize=(12, 7))
 
     if exc_spikes:
         exc_ids = [x[0] for x in exc_spikes]
         exc_times = [x[1] for x in exc_spikes]
-        plt.plot(exc_times, exc_ids, ".", markersize=2, label="exc")
+        plt.plot(exc_times, exc_ids, ".", color="tab:blue", markersize=2, label="Excitatory")
 
     if inh_spikes:
         inh_ids = [x[0] for x in inh_spikes]
         inh_times = [x[1] for x in inh_spikes]
-        plt.plot(inh_times, inh_ids, ".", markersize=2, label="inh")
+        plt.plot(inh_times, inh_ids, ".", color="tab:orange", markersize=2, label="Inhibitory")
 
-    plt.xlabel("time [ms]")
-    plt.ylabel("neuron id")
-    plt.legend()
+    plt.xlabel("Time [ms]")
+    plt.ylabel("Neuron ID")
+    plt.title(f"Current Odeint IAF (N = {n_neurons})")
+    plt.legend(loc="upper right")
     plt.tight_layout()
-    plt.savefig(outname, dpi=200)
+    plt.savefig(outname, dpi=300, bbox_inches="tight")
     plt.close()
 
 
-def save_voltage_trace(record, outprefix="brunel_iaf"):
+def save_voltage_trace(record, outprefix="current_odeint_iaf"):
     data_list = ngpu.GetRecordData(record)
     t = [row[0] for row in data_list]
     traces = []
@@ -94,10 +95,15 @@ def save_voltage_trace(record, outprefix="brunel_iaf"):
         )
         plt.figure(figsize=(10, 5))
         plt.plot(t, trace)
-        plt.xlabel("time [ms]")
-        plt.ylabel("V_m")
+        plt.xlabel("Time [ms]")
+        plt.ylabel("Membrane potential $V_m$ [mV]")
+        plt.title(f"Current Odeint IAF: example neuron {i}")
         plt.tight_layout()
-        plt.savefig(f"{outprefix}_vm_{i}.png", dpi=200)
+        plt.savefig(
+            f"{outprefix}_voltage_trace_{i}.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
         plt.close()
 
 
@@ -209,8 +215,13 @@ def main():
 
     exc_data, inh_data, exc_count, inh_count, cv = get_spike_times(neuron, n_exc, n_inh)
 
-    raster_plot(exc_data, inh_data, outname="brunel_iaf_psc_exp_raster.png")
-    save_voltage_trace(record, outprefix="brunel_iaf_psc_exp")
+    raster_plot(
+        exc_data,
+        inh_data,
+        n_neurons,
+        outname="current_odeint_iaf_raster.png",
+    )
+    save_voltage_trace(record, outprefix="current_odeint_iaf")
 
     compute_stats(exc_count, inh_count, n_exc, n_inh, sim_time, ce, ci)
     print(f"CV : {cv:.4f}" if not np.isnan(cv) else "CV : nan")

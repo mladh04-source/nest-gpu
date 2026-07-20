@@ -470,13 +470,17 @@ def plot_overlay(outdir, family):
     t_builtin, v_builtin, var_builtin, rec_builtin = load_trace(outdir, family, "builtin")
     t_nestml, v_nestml, var_nestml, rec_nestml = load_trace(outdir, family, "nestml")
 
+    model_family = family.upper()
+    native_label = f"Native {model_family}"
+    current_label = f"Current Odeint {model_family}"
+
     for i in range(3):
         plt.figure(figsize=(11, 5))
 
         plt.plot(
             t_builtin,
             v_builtin[:, i],
-            label=f"Built-in ({var_builtin})",
+            label=native_label,
             color="tab:blue",
             linewidth=1.2,
         )
@@ -484,20 +488,23 @@ def plot_overlay(outdir, family):
         plt.plot(
             t_nestml,
             v_nestml[:, i],
-            label=f"NESTML ({var_nestml})",
+            label=current_label,
             color="tab:orange",
             linewidth=1.0,
             alpha=0.85,
         )
 
-        plt.xlabel("time [ms]")
-        plt.ylabel("membrane potential")
-        plt.title(f"{family.upper()} Brunel comparison - V{i + 1}")
+        plt.xlabel("Time [ms]")
+        plt.ylabel("Membrane potential [mV]")
+        plt.title(
+            f"{model_family} comparison: Native vs Current Odeint "
+            f"(trace {i + 1})"
+        )
         plt.legend()
         plt.tight_layout()
 
-        outfile = outdir / f"brunel_compare_{family}_v{i + 1}.png"
-        plt.savefig(outfile, dpi=250)
+        outfile = outdir / f"{family}_native_vs_current_odeint_trace_{i + 1}.png"
+        plt.savefig(outfile, dpi=300, bbox_inches="tight")
         plt.close()
 
         print(f"Wrote {outfile}")

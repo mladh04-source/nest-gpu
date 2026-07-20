@@ -521,32 +521,41 @@ def plot_overlay(outdir, family):
     t_builtin, v_builtin, var_builtin, rec_builtin = load_trace(outdir, family, "builtin")
     t_old, v_old, var_old, rec_old = load_trace(outdir, family, "old_nestml")
 
+    model_family = family.upper()
+    native_label = f"Native {model_family}"
+    legacy_label = f"Legacy generated {model_family}"
+
     for i in range(3):
         plt.figure(figsize=(11, 5))
 
         plt.plot(
             t_builtin,
             v_builtin[:, i],
-            label=f"Built-in ({var_builtin})",
+            label=native_label,
+            color="tab:blue",
             linewidth=1.2,
         )
 
         plt.plot(
             t_old,
             v_old[:, i],
-            label=f"old NESTML ({var_old})",
+            label=legacy_label,
+            color="tab:green",
             linewidth=1.0,
             alpha=0.85,
         )
 
-        plt.xlabel("time [ms]")
-        plt.ylabel("membrane potential")
-        plt.title(f"{family.upper()} Brunel comparison: built-in vs old NESTML - V{i + 1}")
+        plt.xlabel("Time [ms]")
+        plt.ylabel("Membrane potential [mV]")
+        plt.title(
+            f"{model_family} comparison: Native vs Legacy generated "
+            f"(trace {i + 1})"
+        )
         plt.legend()
         plt.tight_layout()
 
-        outfile = outdir / f"brunel_compare_old_nestml_{family}_v{i + 1}.png"
-        plt.savefig(outfile, dpi=250)
+        outfile = outdir / f"{family}_native_vs_legacy_generated_trace_{i + 1}.png"
+        plt.savefig(outfile, dpi=300, bbox_inches="tight")
         plt.close()
 
         print(f"Wrote {outfile}")

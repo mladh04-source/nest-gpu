@@ -69,7 +69,8 @@ def get_spike_times(neurons, NE, NI):
 def raster_plot(
     e_st,
     i_st,
-    output_prefix="brunel_aeif_builtin",
+    n_neurons,
+    output_prefix="native_aeif",
 ):
     e_ids = (
         np.array([x[0] for x in e_st])
@@ -102,7 +103,9 @@ def raster_plot(
             e_times,
             e_ids,
             ".",
-            label="exc",
+            color="tab:blue",
+            markersize=2,
+            label="Excitatory",
         )
 
     if len(i_times):
@@ -110,16 +113,20 @@ def raster_plot(
             i_times,
             i_ids,
             ".",
-            label="inh",
+            color="tab:orange",
+            markersize=2,
+            label="Inhibitory",
         )
 
-    plt.xlabel("time [ms]")
-    plt.ylabel("neuron ID")
-    plt.legend()
+    plt.xlabel("Time [ms]")
+    plt.ylabel("Neuron ID")
+    plt.title(f"Native AEIF (N = {n_neurons})")
+    plt.legend(loc="upper right")
     plt.tight_layout()
     plt.savefig(
         f"{output_prefix}_raster.png",
-        dpi=200,
+        dpi=300,
+        bbox_inches="tight",
     )
     plt.close()
 
@@ -325,7 +332,8 @@ def main():
     raster_plot(
         e_data,
         i_data,
-        output_prefix="brunel_aeif_builtin",
+        n_neurons,
+        output_prefix="native_aeif",
     )
 
     rate_ex, rate_in = compute_stats(
@@ -347,30 +355,42 @@ def main():
     V2 = [row[2] for row in data_list]
     V3 = [row[3] for row in data_list]
 
-    plt.figure()
-    plt.plot(t, V1)
+    plt.figure(figsize=(10, 5))
+    plt.plot(t, V1, color="tab:blue")
+    plt.xlabel("Time [ms]")
+    plt.ylabel("Membrane potential $V_m$ [mV]")
+    plt.title("Native AEIF: example neuron 1")
     plt.tight_layout()
     plt.savefig(
-        "brunel_aeif_builtin_v1.png",
-        dpi=200,
+        "native_aeif_voltage_trace_1.png",
+        dpi=300,
+        bbox_inches="tight",
     )
     plt.close()
 
-    plt.figure()
-    plt.plot(t, V2)
+    plt.figure(figsize=(10, 5))
+    plt.plot(t, V2, color="tab:blue")
+    plt.xlabel("Time [ms]")
+    plt.ylabel("Membrane potential $V_m$ [mV]")
+    plt.title("Native AEIF: example neuron 2")
     plt.tight_layout()
     plt.savefig(
-        "brunel_aeif_builtin_v2.png",
-        dpi=200,
+        "native_aeif_voltage_trace_2.png",
+        dpi=300,
+        bbox_inches="tight",
     )
     plt.close()
 
-    plt.figure()
-    plt.plot(t, V3)
+    plt.figure(figsize=(10, 5))
+    plt.plot(t, V3, color="tab:blue")
+    plt.xlabel("Time [ms]")
+    plt.ylabel("Membrane potential $V_m$ [mV]")
+    plt.title("Native AEIF: example neuron 3")
     plt.tight_layout()
     plt.savefig(
-        "brunel_aeif_builtin_v3.png",
-        dpi=200,
+        "native_aeif_voltage_trace_3.png",
+        dpi=300,
+        bbox_inches="tight",
     )
     plt.close()
 

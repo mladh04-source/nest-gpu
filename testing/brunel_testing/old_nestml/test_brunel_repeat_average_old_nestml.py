@@ -264,11 +264,11 @@ def write_summary_csv(summary_rows, csv_file):
             writer.writerow({key: row.get(key) for key in fieldnames})
 
 
-def nice_impl_name(impl):
+def nice_impl_name(impl, model_family):
     if impl == "builtin":
-        return "built-in"
+        return f"Native {model_family}"
     if impl == "old_nestml":
-        return "old NESTML"
+        return f"Legacy generated {model_family}"
     return impl
 
 
@@ -290,11 +290,12 @@ def plot_summary(summary_rows, outdir):
             for r in family_rows
         }
 
-        labels = [f"N={n}" for n in neuron_counts]
+        labels = [f"{n:,}" for n in neuron_counts]
         x = np.arange(len(neuron_counts))
 
-        # 4 bars per  neuron count:
-        # builtin building, builtin simulation, old_nestml building, old_nestml simulation
+        # Four bars per network size: native build/simulation and
+        # legacy-generated build/simulation.
+        model_family = family.upper()
         width = 0.20
 
         plt.figure(figsize=(max(10, len(neuron_counts) * 1.8), 6))
@@ -334,7 +335,7 @@ def plot_summary(summary_rows, outdir):
                 width,
                 yerr=building_err,
                 capsize=3,
-                label=f"{nice_impl_name(impl)} build/N",
+                label=f"{nice_impl_name(impl, model_family)}: build",
             )
 
             plt.bar(
@@ -343,14 +344,14 @@ def plot_summary(summary_rows, outdir):
                 width,
                 yerr=simulation_err,
                 capsize=3,
-                label=f"{nice_impl_name(impl)} sim/N",
+                label=f"{nice_impl_name(impl, model_family)}: simulation",
             )
 
-        plt.ylabel("time per neuron [ms/neuron]")
-        plt.xlabel("number of neurons")
+        plt.ylabel("Time per neuron [ms/neuron]")
+        plt.xlabel("Network size $N$")
         plt.title(
-            f"{family.upper()} Brunel repeated average timing summary "
-            f"(built-in vs old NESTML)"
+            f"{model_family} legacy compatibility timing benchmark "
+            f"(five runs)"
         )
 
         plt.xticks(x, labels)
@@ -358,8 +359,8 @@ def plot_summary(summary_rows, outdir):
         plt.grid(axis="y", alpha=0.3)
         plt.tight_layout()
 
-        plot_file = outdir / f"brunel_repeat_average_old_nestml_{family}_timing_summary.png"
-        plt.savefig(plot_file, dpi=250)
+        plot_file = outdir / f"{family}_legacy_generated_timing_summary.png"
+        plt.savefig(plot_file, dpi=300, bbox_inches="tight")
         plt.close()
 
         print(f"Wrote plot to: {plot_file}")

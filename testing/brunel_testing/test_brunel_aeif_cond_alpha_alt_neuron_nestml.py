@@ -69,7 +69,8 @@ def get_spike_times(neurons, n_exc, n_inh):
 def raster_plot(
     exc_spikes,
     inh_spikes,
-    outname="brunel_aeif_raster.png",
+    n_neurons,
+    outname="current_odeint_aeif_raster.png",
 ):
     plt.figure(figsize=(12, 7))
 
@@ -80,8 +81,9 @@ def raster_plot(
             exc_times,
             exc_ids,
             ".",
+            color="tab:blue",
             markersize=2,
-            label="exc",
+            label="Excitatory",
         )
 
     if inh_spikes:
@@ -91,19 +93,21 @@ def raster_plot(
             inh_times,
             inh_ids,
             ".",
+            color="tab:orange",
             markersize=2,
-            label="inh",
+            label="Inhibitory",
         )
 
-    plt.xlabel("time [ms]")
-    plt.ylabel("neuron id")
-    plt.legend()
+    plt.xlabel("Time [ms]")
+    plt.ylabel("Neuron ID")
+    plt.title(f"Current Odeint AEIF (N = {n_neurons})")
+    plt.legend(loc="upper right")
     plt.tight_layout()
-    plt.savefig(outname, dpi=200)
+    plt.savefig(outname, dpi=300, bbox_inches="tight")
     plt.close()
 
 
-def save_voltage_trace(record, outprefix="brunel_aeif"):
+def save_voltage_trace(record, outprefix="current_odeint_aeif"):
     data_list = ngpu.GetRecordData(record)
     t = [row[0] for row in data_list]
     traces = []
@@ -120,13 +124,15 @@ def save_voltage_trace(record, outprefix="brunel_aeif"):
         )
 
         plt.figure(figsize=(10, 5))
-        plt.plot(t, trace)
-        plt.xlabel("time [ms]")
-        plt.ylabel("V_m")
+        plt.plot(t, trace, color="tab:orange")
+        plt.xlabel("Time [ms]")
+        plt.ylabel("Membrane potential $V_m$ [mV]")
+        plt.title(f"Current Odeint AEIF: example neuron {i}")
         plt.tight_layout()
         plt.savefig(
-            f"{outprefix}_vm_{i}.png",
-            dpi=200,
+            f"{outprefix}_voltage_trace_{i}.png",
+            dpi=300,
+            bbox_inches="tight",
         )
         plt.close()
 
@@ -343,12 +349,13 @@ def main():
     raster_plot(
         exc_data,
         inh_data,
-        outname="brunel_aeif_cond_alpha_alt_raster.png",
+        n_neurons,
+        outname="current_odeint_aeif_raster.png",
     )
 
     save_voltage_trace(
         record,
-        outprefix="brunel_aeif_cond_alpha_alt",
+        outprefix="current_odeint_aeif",
     )
 
     compute_stats(

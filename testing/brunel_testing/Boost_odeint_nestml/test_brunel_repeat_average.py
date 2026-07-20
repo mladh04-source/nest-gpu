@@ -280,12 +280,14 @@ def plot_summary(summary_rows, outdir):
             for r in family_rows
         }
 
-        labels = [f"N={n}" for n in neuron_counts]
+        labels = [f"{n:,}" for n in neuron_counts]
         x = np.arange(len(neuron_counts))
 
         width = 0.20
 
         plt.figure(figsize=(max(10, len(neuron_counts) * 1.8), 6))
+
+        model_family = family.upper()
 
         for impl_index, impl in enumerate(impl_order):
             building = []
@@ -322,7 +324,11 @@ def plot_summary(summary_rows, outdir):
                 width,
                 yerr=building_err,
                 capsize=3,
-                label=f"{impl} build/N",
+                label=(
+                    f"Native {model_family}: build"
+                    if impl == "builtin"
+                    else f"Current Odeint {model_family}: build"
+                ),
             )
 
             plt.bar(
@@ -331,20 +337,24 @@ def plot_summary(summary_rows, outdir):
                 width,
                 yerr=simulation_err,
                 capsize=3,
-                label=f"{impl} sim/N",
+                label=(
+                    f"Native {model_family}: simulation"
+                    if impl == "builtin"
+                    else f"Current Odeint {model_family}: simulation"
+                ),
             )
 
-        plt.ylabel("time per neuron [ms/neuron]")
-        plt.xlabel("number of neurons")
-        plt.title(f"{family.upper()} Brunel repeated average timing summary")
+        plt.ylabel("Time per neuron [ms/neuron]")
+        plt.xlabel("Network size $N$")
+        plt.title(f"{model_family} repeated timing benchmark (five runs)")
 
         plt.xticks(x, labels)
         plt.legend()
         plt.grid(axis="y", alpha=0.3)
         plt.tight_layout()
 
-        plot_file = outdir / f"brunel_repeat_average_{family}_timing_summary.png"
-        plt.savefig(plot_file, dpi=250)
+        plot_file = outdir / f"{family}_current_odeint_timing_summary.png"
+        plt.savefig(plot_file, dpi=300, bbox_inches="tight")
         plt.close()
 
         print(f"Wrote plot to: {plot_file}")
