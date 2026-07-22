@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="760" viewBox="0 0 980 760">
+<rect width="100%" height="100%" fill="white"/>
+<text x="490.0" y="36.0" text-anchor="middle" font-family="sans-serif" font-size="22" font-weight="bold">Observed AEIF runtime reduction</text>
+<line x1="110" y1="510.0" x2="935" y2="510.0" stroke="#d9d9d9" stroke-width="1"/>
+<text x="96.0" y="515.0" text-anchor="end" font-family="sans-serif" font-size="13" font-weight="normal">0</text>
+<line x1="110" y1="424.0" x2="935" y2="424.0" stroke="#d9d9d9" stroke-width="1"/>
+<text x="96.0" y="429.0" text-anchor="end" font-family="sans-serif" font-size="13" font-weight="normal">7</text>
+<line x1="110" y1="338.0" x2="935" y2="338.0" stroke="#d9d9d9" stroke-width="1"/>
+<text x="96.0" y="343.0" text-anchor="end" font-family="sans-serif" font-size="13" font-weight="normal">14</text>
+<line x1="110" y1="252.0" x2="935" y2="252.0" stroke="#d9d9d9" stroke-width="1"/>
+<text x="96.0" y="257.0" text-anchor="end" font-family="sans-serif" font-size="13" font-weight="normal">21</text>
+<line x1="110" y1="166.0" x2="935" y2="166.0" stroke="#d9d9d9" stroke-width="1"/>
+<text x="96.0" y="171.0" text-anchor="end" font-family="sans-serif" font-size="13" font-weight="normal">28</text>
+<line x1="110" y1="80.0" x2="935" y2="80.0" stroke="#d9d9d9" stroke-width="1"/>
+<text x="96.0" y="85.0" text-anchor="end" font-family="sans-serif" font-size="13" font-weight="normal">35</text>
+<line x1="110" y1="80" x2="110" y2="510" stroke="black" stroke-width="1.5"/>
+<line x1="110" y1="510" x2="935" y2="510" stroke="black" stroke-width="1.5"/>
+<text x="30.0" y="295.0" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="normal" transform="rotate(-90 30.0 295.0)">Reduction [%]</text>
+<text x="522.5" y="585.0" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="normal">Number of neurons</text>
+<rect x="167.0" y="329.4" width="71.5" height="180.6" fill="#1f77b4"/>
+<rect x="256.5" y="322.6" width="71.5" height="187.4" fill="#ff7f0e"/>
+<text x="202.8" y="424.7" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold">14.7%</text>
+<text x="292.2" y="421.3" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold">15.3%</text>
+<text x="247.5" y="540.0" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="normal">1000</text>
+<rect x="442.0" y="318.9" width="71.5" height="191.1" fill="#1f77b4"/>
+<rect x="531.5" y="315.1" width="71.5" height="194.9" fill="#ff7f0e"/>
+<text x="477.8" y="419.4" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold">15.6%</text>
+<text x="567.2" y="417.6" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold">15.9%</text>
+<text x="522.5" y="540.0" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="normal">2000</text>
+<rect x="717.0" y="169.9" width="71.5" height="340.1" fill="#1f77b4"/>
+<rect x="806.5" y="161.5" width="71.5" height="348.5" fill="#ff7f0e"/>
+<text x="752.8" y="344.9" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold">27.7%</text>
+<text x="842.2" y="340.8" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold">28.4%</text>
+<text x="797.5" y="540.0" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="normal">5000</text>
+<rect x="275.0" y="658.0" width="430" height="52" fill="white" stroke="#999"/>
+<rect x="295.0" y="676.0" width="26" height="16" fill="#1f77b4"/>
+<text x="333.0" y="689.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="normal">Simulation wall time</text>
+<rect x="520.0" y="676.0" width="26" height="16" fill="#ff7f0e"/>
+<text x="558.0" y="689.0" text-anchor="start" font-family="sans-serif" font-size="14" font-weight="normal">neuron_Update time</text>
+</svg>
